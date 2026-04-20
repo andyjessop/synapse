@@ -1,0 +1,15 @@
+---
+description: Manifest agent handlers — default-export functions and handler-local Zod
+globs:
+  - agents/**/*
+  - examples/agents/**/*
+---
+
+# Agent handlers (manifest runtime)
+
+- **Subscriptions** live only in `manifests/*.json` (`handles` arrays), never in handler modules.
+- Handlers are **default-exported async functions** `(ctx, event) => Promise<void>`, referenced by manifest `handler` paths.
+- Prefer **`defineAgentHandler(eventDataSchema, fn)`** from `runtime-agent` so `event.data` is Zod-validated before business logic.
+- Manual handlers must **`parse` `event.data` with a handler-local Zod schema** as the first step (do not import `runtime-events` schemas into handlers).
+- Do not add `subscribesTo`, handler `name`, or `handles` inside agent packages.
+- Handlers must not import MQTT, BullMQ, Redis, or Hono.

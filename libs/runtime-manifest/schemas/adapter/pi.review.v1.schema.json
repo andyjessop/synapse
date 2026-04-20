@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "libs/runtime-manifest/schemas/adapter/pi.review.v1.schema.json",
+  "title": "Pi review adapter fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "adapter", "method", "match", "response"],
+  "properties": {
+    "version": { "const": 1 },
+    "schema": {
+      "const": "libs/runtime-manifest/schemas/adapter/pi.review.v1.schema.json"
+    },
+    "adapter": { "const": "pi" },
+    "method": { "const": "review" },
+    "match": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["markdown"],
+      "properties": {
+        "markdown": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

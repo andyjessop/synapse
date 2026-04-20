@@ -1,0 +1,22 @@
+---
+description: TypeScript must never use any
+globs: "**/*.{ts,tsx,mts,cts}"
+alwaysApply: false
+---
+
+# TypeScript: no `any`
+
+Do not use `any`. Ever.
+
+## Required alternatives
+
+- Use `unknown` for values whose shape is not yet known, then narrow with Zod schemas, type guards, or explicit runtime checks before use.
+- Use precise generics, discriminated unions, mapped types, or narrower interfaces when the shape is known.
+- If a third-party API exposes `any`, contain it at the boundary and immediately validate or narrow it before passing values into application code.
+
+## Patterns to avoid
+
+- `value: any`
+- `as any`
+- `Array<any>`, `Record<string, any>`, `Promise<any>`, and similar generic forms.
+- Suppressing type errors by widening to `any`; fix the type instead.

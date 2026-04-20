@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/adapter/gitlab.fetchChanges.v1.schema.json",
+  "adapter": "gitlab",
+  "method": "fetchChanges",
+  "match": {
+    "projectId": 202,
+    "mergeRequestIid": 42
+  },
+  "response": {
+    "project_id": 202,
+    "merge_request_iid": 42,
+    "merge_request_id": 9101,
+    "changes": [
+      {
+        "old_path": "agents/agent-reviewer/src/prompt.ts",
+        "new_path": "agents/agent-reviewer/src/prompt.ts",
+        "diff": "@@ -1,6 +1,8 @@\n import type { SynapseEvent } from 'runtime-agent';\n import type { EventDataFor } from 'runtime-events';\n \n-export const REVIEW_PR_PROMPT_VERSION = 'review-pr.v1' as const;\n+export const REVIEW_PR_PROMPT_VERSION = 'review-pr.v2' as const;\n+\n+/** Instructs Pi to fetch MR diffs via fetch_merge_request_diff. */\n",
+        "new_file": false,
+        "renamed_file": false,
+        "deleted_file": false
+      },
+      {
+        "old_path": "libs/pi-harness/src/pi-review-sdk-client.ts",
+        "new_path": "libs/pi-harness/src/pi-review-sdk-client.ts",
+        "diff": "@@ -108,6 +108,10 @@\n         sessionManager: SessionManager.inMemory(options.repoRoot),\n         tools: ['read', 'grep', 'find', 'ls'],\n+        customTools: [\n+          createFetchMergeRequestDiffToolDefinition({\n+            client: options.gitlab,\n+            expectedRequest: options.request.gitlab,\n+          }),\n+        ],\n       });\n",
+        "new_file": false,
+        "renamed_file": false,
+        "deleted_file": false
+      },
+      {
+        "old_path": "apps/worker/src/dev-adapters.ts",
+        "new_path": "apps/worker/src/dev-adapters.ts",
+        "diff": "@@ -1,5 +1,6 @@\n import type { PiReviewClient } from 'agent-reviewer';\n+import type { GitLabMergeRequestClient } from 'adapter-gitlab';\n import {\n   createPiReviewFixtureClient,\n",
+        "new_file": false,
+        "renamed_file": false,
+        "deleted_file": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+---
+description: Synapse Run Loop — manifest, dev:once fixtures, run artifact proofs
+globs:
+  - agents/**
+  - examples/agents/**
+  - manifests/**
+  - fixtures/**
+  - examples/fixtures/**
+  - libs/dev-once/**
+  - libs/synapse-fixtures/**
+  - scripts/dev-once/**
+---
+
+# Synapse Run Loop
+
+When changing Synapse agent behavior:
+
+1. Identify the runtime manifest that loads the agent.
+2. Start the runtime first: `npm run dev -- --manifest <path>` (local) or `startTestDevServer` / `withTestDevServer` (tests).
+3. Identify or create a fixture listed under that agent in the manifest (`agents[].fixtures`).
+4. Run one ingress proof: `npm run dev:once -- --fixture <id>` or `runDevOnce({ fixtureId, env })` with the same env as the test server.
+5. Never pass `--manifest` to `dev:once`; manifest selection belongs to `npm run dev` or `startTestDevServer`.
+6. `runDevOnce` does not start workers, webhooks, or infrastructure.
+7. Assert with normal Vitest expectations on `SynapseRunArtifact` (`events`, `agentRuns`, `status`).
+8. Do not call live external APIs by default.
+9. Do not add `defineReactor` subscriptions for new shipped agents.

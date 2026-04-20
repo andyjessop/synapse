@@ -1,0 +1,75 @@
+---
+description: Creating a new capability agent under agents/ with webhooks, fixtures, and e2e tests
+globs: agents/**/*
+alwaysApply: false
+---
+
+# New agent checklist
+
+Use this when adding **application** agents under `agents/agent-<name>/`. Example/curriculum agents belong in `examples/agents/` — see **new-example-agent** rule.
+
+Agents own ingress + handler modules; manifests own subscriptions (`handles`); runtime libs own Postgres, queues, and worker plumbing.
+
+## Non-negotiables
+
+1. **HTTP ingress path** — if the agent is exercised via HTTP locally, add a **Zod-validated** route under `apps/webhooks/`, document it in `apps/webhooks/README.md`, and add a **fixture JSON file** listed under `agents[].fixtures` in `manifests/application.json` so **`npm run dev:once -- --fixture <id>`** can POST the same bytes as production-shaped traffic.
+2. **Full fixture mocks** — declare adapter stub paths on the manifest agent row (`adapterFixtures` or agent-local bootstrap); integration tests use hermetic env or explicit client injection; no live third-party calls in the default CI path.
+3. **Shared fixtures** — static payloads live under `fixtures/<agent-name>/` (repo root), not inside the agent package.
+4. **Unit + integration tests** — unit tests in `test/unit/`; end-to-end in `test/integration/` using `agent-test-harness`.
+
+## Package layout
+
+```
+agents/agent-<name>/
+  package.json          # name: agent-<name>
+  src/
+    <name>-agent.ts       # default export: defineAgentHandler(schema, fn)
+    ingress.ts          # ctx.emit ingress helpers
+    index.ts            # public exports
+manifests/              # add agent row: name, handler path, handles[]
+  test/
+    unit/               # fast, no Docker
+    integration/        # e2e via agent-test-harness (Postgres + Redis)
+    helpers/            # test-only fakes (optional)
+fixtures/<agent-name>/  # JSON/Markdown payloads
+```
+
+## Webhooks + `dev:once` (required for HTTP-shaped ingress)
+
+1. Implement the HTTP handler in `apps/webhooks` (same validation path as manual `curl`).
+2. Add a **fixture JSON file** under `fixtures/<agent-name>/` and list its path in `agents[].fixtures` on the manifest.
+3. Register agent in `manifests/application.json` (or a custom manifest): `name`, `handler` path, `handles`, `fixtures`, and any `adapterFixtures` paths. Wire local IO in the agent handler package (see `agents/agent-reviewer/src/configure-review-pr-dev-clients.ts`); do not edit `apps/worker` for agent-specific adapters.
+4. Verify: `npm run dev:infra`, `npm run dev`, then `npm run dev:once -- --fixture <fixture-id>`.
+
+Example LLM fixture path (copy and adjust):
+
+```text
+fixtures/llm-blurb/openai-minimal.json
+```
+
+## Integration tests (required)
+
+Place e2e tests in `agents/agent-<name>/test/integration/*.e2e.test.ts`.
+
+- Import `runAgentE2e`, `integrationInfraAvailable`, `expectAgentRunSucceeded`, `expectEventType` from `agent-test-harness`.
+- Use `describe.skipIf(!integrationInfraAvailable)(…)` — requires local Postgres + Redis (`npm run dev:infra`).
+- Prefer `manifestPath: 'manifests/application.json'` and inject test deps before `runAgentE2e`, or legacy `createAgents` for non-manifest harness tests.
+- In `run`: emit ingress (same shape as production), assert run `succeeded`, assert outcome event(s).
+
+Reference: `examples/agents/example-agent-echo/test/integration/echo-dev-once.e2e.test.ts` (hermetic, no LLM). Do not add `agent-reviewer` integration tests that call the live Pi SDK or an LLM.
+
+`vitest.config.ts` must alias `agent-test-harness` → `libs/agent-test-harness/src/index.ts` when using the harness; set `testTimeout: 120_000` only if the package has integration tests.
+
+## Boundaries
+
+- Agents **must not** import Hono, MQTT, BullMQ, Redis clients, or `apps/*`.
+- Ingress uses `createIngressContext` + `ctx.emit`; reactors use injected clients/interfaces, not `child_process` directly.
+- Register events in `runtime-events` registry; worker loads agents from the runtime manifest + dev adapters.
+
+## Definition of done
+
+- [ ] `fixtures/<agent-name>/` with documented payloads
+- [ ] Webhook route + fixture JSON + manifest `agents[].fixtures` entry (when ingress is HTTP-shaped)
+- [ ] Unit tests for ingress, reactor, and schemas
+- [ ] `test/integration/*` e2e test green with `npm run dev:infra`
+- [ ] `npx nx run agent-<name>:test` and lint/typecheck pass

@@ -1,0 +1,47 @@
+---
+description: CLI apps use oclif for parsing and Clack for interactive UX
+globs: apps/automation-*/**/*.{ts,mjs}
+alwaysApply: false
+---
+
+# CLI: oclif + Clack
+
+## Stack
+
+- Use **`@oclif/core`** for CLI frameworks (flags, args, help, exit codes).
+- Include **`@oclif/plugin-help`** for standard help output.
+- Use **`@clack/prompts`** for every user-facing CLI surface: prompts, confirms, selects, spinners, intro/outro, notes, and errors.
+- Prefer **oclif’s single-command strategy** when the app is one primary command: `package.json` → `oclif.commands.strategy: "single"` and `oclif.commands.target` pointing at the command module.
+- Declare **`@clack/prompts`** at the repo root only (see **npm-packages-root-hoist**).
+
+## Division of labor
+
+| Layer | Responsibility |
+| --- | --- |
+| **oclif** | Parsing, `--help`, non-interactive flags, dispatch, `process.exitCode` |
+| **Clack** | Interactive flow, progress, success/failure presentation |
+| **`libs/automation-*`** | Business logic; no direct terminal IO |
+
+- After oclif parses options, drive the run with Clack (`intro`, `spinner`, `outro`, `cancel`, `isCancel`) instead of raw `console.log` / `readline`.
+- Keep **non-interactive** paths (`--json`, CI, pipes): skip Clack prompts; still use Clack **spinners/notes** when stderr is a TTY and output is human-oriented.
+
+## Beautiful CLIs
+
+CLIs should feel polished, not utilitarian:
+
+- Open with **`intro`**; close with **`outro`** (success) or **`cancel`** / clear error messaging (failure).
+- Use **`spinner`** for work that takes noticeable time; stop with `stop("…")` and a short, specific message.
+- Prefer **`select`**, **`multiselect`**, **`confirm`**, and **`text`** over free-form argv for interactive choices.
+- Write copy for humans: short titles, full sentences, no stack traces on the default path.
+- Respect **Ctrl+C**: handle `isCancel` and exit cleanly.
+- On **`--help` / `--version`**, let oclif print; do not wrap those in Clack.
+
+## Layout
+
+- **Entry**: `bin/run.mjs` (or equivalent) calling `execute({ development: true, dir })` from `@oclif/core` for local TypeScript.
+- **Commands**: under `src/commands/` (e.g. `root.ts` exporting a `Command` subclass).
+- **Thin app**: parsing, config load, dispatch to `libs/automation-*`, exit codes only—no Jira/Slack/OpenAI/repo calls in the CLI package beyond wiring.
+
+## Dev execution
+
+- Prefer **`node --import tsx`** (or the repo’s `start` script) so TypeScript runs without a separate compile step during scaffold/spikes.

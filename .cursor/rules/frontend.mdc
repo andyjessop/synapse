@@ -1,0 +1,130 @@
+---
+alwaysApply: true
+---
+
+## Building with Pi: Separation of Concerns
+
+### Rule: Redux = runtime, React = view
+
+| Layer | Responsibility | Must NOT |
+|-------|-----------------|----------|
+| **redux.ts** | State, actions, thunks, selectors, middleware (including data fetch, polling, route reactions) | React, DOM |
+| **react.tsx** | Render from state, dispatch actions/thunks on events | `useEffect` for data fetch/polling/route-driven logic, business logic, local form/modal state |
+
+- **Data:** Components use `useAppSelector(selector)`. All derived data comes from selectors; no business logic in components.
+- **Events:** Handlers are one-liners: `onClick={() => dispatch(someAction())}` or `dispatch(fetchSomething())`.
+- **Forms / modals:** State lives in Redux; components only read and dispatch. No `useState` for feature state.
+
+### Where to put what
+
+- **API calls, async work** → `createAsyncThunk` in `redux.ts`.
+- **“When user lands on route X, fetch Y”** → Middleware in `redux.ts` that listens for `router/navigateSuccess` and dispatches thunks. Never do this in `useEffect` in React.
+- **Polling, debounce, timers** → Middleware in `redux.ts` (start on route enter, cleanup on leave).
+- **Navigation** → `dispatch(navigateTo({ name: "routeName", params?, search? }) as never)` from React or from a thunk.
+
+### Allowed `useEffect` in React
+
+Only for **UI-only** behaviour that can’t live in Redux:
+
+- Using browser/HTML APIs (e.g. `document.title`, focus).
+- Cleaning up browser resources on unmount (e.g. stopping media tracks).
+
+**Not allowed:** fetch on mount, polling, subscribing to route to trigger fetches. Those belong in middleware.
+
+---
+
+## Module layout
+
+Each feature is a **module** under `src/modules/<name>/`:
+
+```
+modules/
+  my-feature/
+    index.ts    # Re-export from redux + react only
+    redux.ts    # Slice, thunks, selectors, middleware
+    react.tsx   # Pure components (select + dispatch only)
+```
+
+- **index.ts:** `export * from "./redux"; export * from "./react";` (and export types). No logic.
+- **redux.ts:** Define state, slice, thunks, selectors, and middleware. Export `module` for Pi:
+  - `export const module = createModule("myFeature", reducer, [middleware]);`
+- **react.tsx:** Only `useAppSelector` and `useAppDispatch`; no `useEffect` for data.
+
+Register the module in `src/store.ts`:
+
+```ts
+import { module as myFeatureModule } from "./modules/my-feature";
+// ...
+modules: {
+  myFeature: myFeatureModule as unknown as PiModule<unknown>,
+},
+```
+
+Add the route and the container in `App.tsx` (select route with `selectRouteName`, render the right container).
+
+---
+
+## Template module
+
+`src/modules/template` is the reference implementation. Copy it when adding a new feature. It shows:
+
+- **redux.ts:** Slice, one async thunk, selectors, and middleware that runs a fetch when the user navigates to `"home"` (no fetch in React).
+- **react.tsx:** A single page component that only uses `useAppSelector` and `useAppDispatch`; no `useEffect` for data.
+
+Use it as the pattern for Redux/React separation and for route-based loading.
+
+---
+
+## Pi router
+
+- Routes are configured in `store.ts` with `createRoutes({ home: { path: "/" }, ... })`.
+- Current route is in Redux; use `selectRouteName(state)` (and params/search/hash selectors from `pi`).
+- Navigate by dispatching the `navigateTo` thunk from `pi` (e.g. `dispatch(navigateTo({ name: "home" }) as never)`).
+- Middleware subscribes to **`router/navigateSuccess`** to run fetches, polling, or cleanup when the route changes.
+
+---
+
+## UI components
+
+`src/components/ui/` holds shared UI (Radix + Tailwind). They are presentational: props and callbacks only, no Redux or business logic.
+
+---
+
+## Hooks
+
+Use the typed hooks from `src/hooks.ts`:
+
+- `useAppSelector` — same as `useSelector` with `RootState`.
+- `useAppDispatch` — same as `useDispatch` with `AppDispatch`.
+
+Use these everywhere instead of raw `useSelector`/`useDispatch`.
+
+---
+
+## Quick reference
+
+| Need to… | Do it in… | How |
+|----------|------------|-----|
+| Fetch when a route is opened | redux.ts | Middleware on `router/navigateSuccess` → dispatch thunk |
+| Debounce or poll | redux.ts | Middleware (timers, clear on route leave) |
+| Navigate | react.tsx or thunk | `dispatch(navigateTo({ name, params?, search? }) as never)` |
+| Read state | react.tsx | `useAppSelector(selector)` |
+| Trigger an action (e.g. refresh) | react.tsx | `dispatch(myThunk())` |
+| API call | redux.ts | `createAsyncThunk` |
+| Derived data | redux.ts | Selectors (don’t store derived data in state) |
+
+| Debug headlessly | Node script | Same Pi config + `createDebugMiddleware()` or `createTraceMiddleware(path)` from `pi` |
+
+For more detail and patterns (e.g. polling, debounce), see `packages/pi/README.md`.
+
+---
+
+## Headless debugging
+
+Because all business logic is in Redux, you can run the **same application** without React in Node and get **full visibility** of behaviour. Create a small Node script that:
+
+1. Imports the same Pi config (e.g. same modules and routes as in `store.ts`).
+2. Calls `createPi({ ...config, extraMiddleware: [createDebugMiddleware()] })` or `createTraceMiddleware("/path/to/trace.jsonl")` from `pi`.
+3. Dispatches actions (e.g. `navigateTo`, thunks) to drive the app.
+
+Every action and resulting state is then visible in the console or in the trace file. No browser or DOM required. See **Headless Debugging** in `packages/pi/README.md` for the full pattern and examples.

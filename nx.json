@@ -1,0 +1,15 @@
+{
+  "extends": "nx/presets/npm.json",
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "targetDefaults": {
+    "test": {
+      "parallelism": false
+    }
+  },
+  "pluginsConfig": {
+    "@nx/js": {
+      "analyzeSourceFiles": false
+    }
+  },
+  "analytics": false
+}

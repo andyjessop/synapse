@@ -1,0 +1,34 @@
+---
+description: When to persist user-stated repo-wide build preferences into other Cursor rules
+alwaysApply: true
+---
+
+# Capturing generalized preferences in rules
+
+Sometimes the user states how they want work done **across the repo**, not only for the current task. When that happens, **consider** reflecting it in `.cursor/rules/` so future sessions stay aligned.
+
+## Default: do nothing
+
+- **Bias heavily toward not editing rules.** Most messages are task-specific, one-off context, or exploratory; those do **not** belong in rules.
+- **Never** treat “write it down” as a license to grow rules with noise, duplicates, or long transcripts.
+
+## When it is worth persisting
+
+Update or extend an existing rule (preferred), or add a small new rule, only when **all** of these hold:
+
+- The user is stating a **stable, general** preference (how we structure code, dependencies, APIs, tests, tooling, review expectations, etc.), not a single PR or ticket.
+- It is **obvious** they want this to apply again later, not a passing suggestion.
+- It is **concise and actionable** in one or a few bullets — if it needs an essay, it is probably not rule-shaped yet.
+- It **does not duplicate** what another rule already says; merge or tighten instead of repeating.
+
+## How to apply it
+
+- Prefer **editing the single most relevant rule** (layout, packages, CLI, API, etc.) with a short bullet or subsection.
+- Add a **new** rule file only when the topic is distinct and will be referenced often; keep frontmatter `description` accurate.
+- Keep edits **minimal** — the smallest change that encodes the preference.
+
+## When to skip
+
+- One-off instructions for the current change.
+- Obvious universal good practice with no repo-specific twist.
+- Anything you are **unsure** is a long-term preference: respond in chat; you may **ask** whether they want it in rules before editing.

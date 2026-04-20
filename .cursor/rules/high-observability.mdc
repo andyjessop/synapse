@@ -1,0 +1,32 @@
+---
+description: Observability-first instrumentation standards for runtime code
+alwaysApply: true
+---
+
+# Observability-first code
+
+Observability and local development are primary project goals. Treat meaningful unobserved runtime behavior as incomplete work.
+
+## Instrument meaningful work
+
+- Add tracing, metrics, and structured logs for any function that performs I/O, orchestration, queue/event handling, process startup/shutdown, retries, polling, external API calls, LLM calls, DB transactions, artifact writes, or non-trivial branching that explains user-visible outcomes.
+- Tiny pure helpers, schema-only definitions, simple mappers, and formatting helpers do not need spans unless they are expensive or failure-prone.
+- Prefer `runWithRuntimeSpan` from `runtime-observability`; extend `RuntimeHop` and `spanNames` when adding a new recurring runtime hop instead of inventing ad hoc names everywhere.
+- Propagate trace context with `contextFromEvent` / `contextFromTraceCarrier` and emit event trace carriers with `eventTraceCarrier` at event boundaries.
+
+## Metrics and logs
+
+- Record outcome metrics with `RuntimeMetrics` where the existing counter families fit; add new metric families deliberately when a new operational question cannot be answered otherwise.
+- Metric labels must stay low-cardinality. Never use event IDs, trace IDs, job IDs, raw URLs, prompts, payloads, subjects, or arbitrary customer data as metric labels.
+- Use `buildRuntimeLogFields` for structured logs so errors and important lifecycle messages carry trace/span IDs plus relevant runtime IDs.
+- For durable audit rows, use `runtimeSpanAuditContext()` inside the span that performed the work.
+
+## Local debugging payloads
+
+- Local fixture/debug workflows may attach bounded payload previews to span events when explicitly implemented; keep those previews small and redacted.
+- Debug-only workflows that need full payload inspection should prefer a single local run file that joins full event payloads with raw OTel trace/span identifiers, rather than synthesizing extra spans into Jaeger.
+- Do not put full unbounded payloads, secrets, prompts, or customer data in normal span attributes or metric labels.
+
+## Tests
+
+- New instrumentation must be covered by tests where practical: assert span names/attributes/events via in-memory observability handles, metric labels for outcomes, and structured log fields for failure paths.

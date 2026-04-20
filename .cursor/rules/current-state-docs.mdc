@@ -1,0 +1,46 @@
+---
+description: Current-state docs only
+globs:
+  - README.md
+  - docs/**
+  - agents/**/README.md
+  - examples/**/README.md
+  - .cursor/rules/**
+alwaysApply: true
+---
+
+# Current-state docs only
+
+Documentation must describe the current intended Synapse workflow only.
+
+Do not mention removed commands, old command names, migration history, or previous implementation details in normal docs.
+
+**Lint note:** Automated doc checks must exempt this rule file (it lists banned phrases intentionally).
+
+Do not write phrases like:
+
+- removed
+- formerly
+- deprecated
+- old command
+- previous command
+- used to
+- no longer
+- legacy
+- replacement
+- renamed from
+- migration
+
+unless editing a dedicated migration note (this rule file is exempt).
+
+When a command changes, replace the examples with the current command. Do not explain the old command.
+
+Do not invent negative command names such as `dev:once:example` to say they do not exist.
+
+For Synapse Run Loop docs, show only:
+
+```bash
+npm run dev -- --manifest <path>
+npm run dev:once -- --fixture <id>
+npm run dev:once -- --list
+```

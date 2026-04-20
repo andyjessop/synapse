@@ -1,0 +1,55 @@
+name: synapse-local
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: synapse
+      POSTGRES_DB: synapse
+    ports:
+      - "127.0.0.1:25432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:26379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - redis-data:/data
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "127.0.0.1:24317:4317"
+      - "127.0.0.1:24318:4318"
+      - "127.0.0.1:21333:13133"
+    volumes:
+      - ./otel/collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:26686:16686"
+      - "127.0.0.1:24250:14250"
+
+volumes:
+  postgres-data:
+  redis-data:

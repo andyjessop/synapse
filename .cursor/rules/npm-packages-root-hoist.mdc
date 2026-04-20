@@ -1,0 +1,27 @@
+---
+description: npm workspace packages — structure and root-only dependencies
+alwaysApply: true
+---
+
+# Packages: structure and hoisting
+
+## Where versions live
+
+- Declare **every npm dependency and devDependency only in the root** `package.json` (`source`).
+- Workspace `apps/*` and `libs/*` packages must **not** define `dependencies` or `devDependencies`. Versions and upgrades happen in one place; install hoists from the root.
+
+## What workspace `package.json` files contain
+
+Allowed fields include: `name`, `version`, `private`, `type`, `main`, `bin`, `scripts`, `exports`, tool config (e.g. `oclif`), and other non-dependency metadata. No `dependencies` / `devDependencies` blocks.
+
+## Workspace graph
+
+- **Do not** re-list workspace packages in leaf `package.json` files. npm links every workspace from the root `workspaces` globs; add **external** packages only at the root unless a tool’s docs require an explicit workspace edge (then document it in the root manifest only).
+
+## Install and Nx
+
+- Run **`npm install` only at the repo root**. Run package scripts via Nx from the root (`npx nx run-many -t test --all`, `npx nx run <project>:<target>`); see **nx-commands-from-root**. Do not add per-package lockfiles.
+
+## Rationale
+
+- One lockfile, one place to audit (`npm audit`), consistent versions across automations and services.

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/adapter/pi.review.v1.schema.json",
+  "adapter": "pi",
+  "method": "review",
+  "match": {
+    "projectId": 202,
+    "mergeRequestIid": 42
+  },
+  "response": {
+    "markdown": "## Summary\nThe review agent spec path is coherent for local verification coverage..\n\n## Findings\nNo findings.\n\n## Tests\nUse unit coverage for schema, ingress, prompt, and reactor behavior plus a script-level integration test with a fake Pi client.\n\n## Residual Risk\nLive Pi execution remains dependent on local developer setup.\n"
+  }
+}

@@ -1,0 +1,21 @@
+---
+description: After completing implementation work, run root lint, typecheck, test, and format via Nx
+alwaysApply: true
+---
+
+# Post-task verification
+
+When a **task is complete**—meaning you have finished the requested implementation, fix, or refactor and would otherwise hand off—**before** treating the work as done:
+
+1. From the **repository root** (`source`), run these in order and address any failures:
+
+   - `npx nx run-many -t lint --all && npx biome check biome.json vitest.config.ts`
+   - `npx nx run-many -t typecheck --all`
+   - `npx nx run-many -t test --all`
+   - `npx nx run-many -t format --all && npx biome format --write biome.json vitest.config.ts`
+
+2. If any command fails, fix the underlying issues and re-run until all four succeed (unless the user explicitly waives verification for that turn).
+
+3. When the change can affect local dev, run **[dev-flow-smoke](dev-flow-smoke.mdc)** (`npm run dev -- --manifest manifests/examples/echo.json` + `npm run dev:once -- --fixture example/echo`) after step 2 passes.
+
+**Scope**: Apply when the task changed code, tests, or repo tooling in a way that could affect CI. Purely exploratory or documentation-only turns that touch no executable paths do not require this unless the user asks for a full check.

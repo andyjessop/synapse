@@ -1,0 +1,13 @@
+{
+  "responses": {
+    "default": {
+      "text": "{\"ok\":true}",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 3,
+        "totalTokens": 5
+      },
+      "finishReason": "stop"
+    }
+  }
+}

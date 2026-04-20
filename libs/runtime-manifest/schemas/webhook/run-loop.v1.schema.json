@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "libs/runtime-manifest/schemas/webhook/run-loop.v1.schema.json",
+  "title": "Synapse webhook run-loop fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "id", "title", "agent", "ingress"],
+  "properties": {
+    "version": { "const": 1 },
+    "schema": {
+      "const": "libs/runtime-manifest/schemas/webhook/run-loop.v1.schema.json"
+    },
+    "id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "agent": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "method", "path"],
+      "properties": {
+        "kind": { "const": "webhook" },
+        "method": { "const": "POST" },
+        "path": { "type": "string", "minLength": 1 },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "body": {}
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rootEventType": { "type": "string", "minLength": 1 },
+        "eventTypes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "terminalEventTypes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "agentRuns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["agent"],
+            "properties": {
+              "agent": { "type": "string", "minLength": 1 },
+              "reactorName": { "type": "string", "minLength": 1 },
+              "status": { "enum": ["succeeded", "failed"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

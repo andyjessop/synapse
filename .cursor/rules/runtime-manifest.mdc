@@ -1,0 +1,18 @@
+---
+description: Runtime manifest JSON — agents, handler paths, webhooks
+globs:
+  - manifests/**/*
+  - libs/runtime-manifest/**/*
+  - scripts/dev.ts
+  - apps/worker/**/*
+---
+
+# Runtime manifest
+
+- Manifest format: JSON, `version: 1`, required `schema` → `libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json` (`MANIFEST_SCHEMA_PATH`), `agents[]` with `name`, `handler`, `handles`, optional `fixtures: { webhook: string[], adapter: string[] }` (no `emits`, `enabled`), optional `webhooks.routes: string[]` (stable route ids from `libs/runtime-manifest/src/webhook-route-catalog.ts`; registration in `apps/webhooks/src/webhook-route-registry.ts`).
+- Manifest, webhook, and adapter fixture **JSON Schema paths** are authoritative in `libs/runtime-manifest` (`MANIFEST_SCHEMA_PATH`, `WEBHOOK_FIXTURE_SCHEMA_PATHS`, `ADAPTER_FIXTURE_SCHEMA_PATHS` under `libs/runtime-manifest/schemas/`); each document's `schema` field is the repo-root-relative path to its `.schema.json` file.
+- Default path: `manifests/application.json`. Override with `npm run dev -- --manifest <path>` or `SYNAPSE_RUNTIME_MANIFEST`.
+- **`npm run dev`** loads the manifest, registers agents, configures webhooks, writes `.synapse/dev-session.json`, and prints `synapse manifest: <abs path>`.
+- **`npm run dev:once`** does not select or override manifests; it reads `.synapse/dev-session.json`, loads the active manifest, resolves `agents[].fixtures`, and sends fixture ingress only.
+- Handler paths: repo-root-relative POSIX, allowlisted under `agents/` or `examples/agents/`.
+- Validate unknown `handles` event types against `runtime-events` before the worker starts.

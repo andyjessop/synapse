@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
+  "name": "test-no-adapter",
+  "agents": [
+    {
+      "name": "agent-reviewer",
+      "handler": "agents/agent-reviewer/src/review-pr-agent.ts",
+      "handles": ["pr.received.v1"]
+    }
+  ]
+}

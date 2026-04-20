@@ -1,0 +1,23 @@
+---
+description: HTTP APIs use Hono with machine-readable OpenAPI specs
+globs: apps/api-*/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# HTTP API: Hono + OpenAPI
+
+## Stack
+
+- Use **[Hono](https://hono.dev/)** for routing, middleware, and handlers.
+- Treat the **OpenAPI document** as the contract: generate or derive it from the same definitions that validate requests and responses (e.g. **Zod**-based route schemas with an OpenAPI-capable Hono integration).
+
+## Conventions
+
+- Put HTTP apps under **`apps/api-*`** so this rule applies consistently.
+- Keep handlers **small**: validate input, call service/automation libs, map errors to HTTP, return typed payloads.
+- Export a stable **`/openapi.json`** (or equivalent) in every environment that serves HTTP; keep response shapes aligned with the spec.
+
+## What not to do
+
+- Do not hand-maintain a duplicate OpenAPI YAML that drifts from runtime validation.
+- Do not embed automation-specific domain rules in generic API glue—keep them in `libs/automation-*` or `libs/service-*`.

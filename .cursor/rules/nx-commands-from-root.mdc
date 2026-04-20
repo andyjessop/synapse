@@ -1,0 +1,11 @@
+---
+description: Run workspace commands from repo root via Nx only (single invoker)
+alwaysApply: true
+---
+
+# Commands: repo root and Nx
+
+- Run workspace tooling from the **repository root** (`source`). Do not document or suggest `cd` into `apps/*` or `libs/*` to run package `npm run` scripts as an alternate path.
+- **Nx is the only invoker** for package targets: `npx nx run <project>:<target>` and `npx nx run-many -t <target> --all`, including any trailing root-only steps already chained in those flows (for example `npx biome check` / `npx biome format` on root config files after `run-many -t lint` / `format`).
+- Do not add root `package.json` scripts that only duplicate an equivalent `npx nx run …` with no extra behavior.
+- **Exception:** `npm install` (and `npm ci` in CI) runs only at the repo root; there is no Nx substitute.

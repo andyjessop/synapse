@@ -1,0 +1,11 @@
+---
+description: LLM calls must use Vercel AI SDK
+alwaysApply: true
+---
+
+# LLM Calls: Vercel AI SDK
+
+- All application LLM calls must go through the Vercel AI SDK (`ai` package).
+- For OpenAI models, use the `@ai-sdk/openai` provider, for example `createOpenAI(...).responses(model)` with `generateText` or another AI SDK primitive.
+- Do not add direct raw HTTP calls to model provider APIs (`fetch` to OpenAI/Anthropic/etc.) except as a custom transport passed into an AI SDK provider for tests or infrastructure wiring.
+- Keep LLM boundaries injectable for tests so automated tests never call real model providers.

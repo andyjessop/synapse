@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
+  "title": "Synapse runtime manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "name", "agents"],
+  "properties": {
+    "version": { "const": 1 },
+    "schema": {
+      "const": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json"
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/agent" }
+    },
+    "webhooks": { "$ref": "#/$defs/webhooks" }
+  },
+  "$defs": {
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "handler", "handles"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "handler": { "type": "string", "minLength": 1 },
+        "handles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "fixtures": { "$ref": "#/$defs/agentFixtures" }
+      }
+    },
+    "agentFixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["webhook", "adapter"],
+      "properties": {
+        "webhook": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "adapter": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "webhooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["routes"],
+      "properties": {
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "synapse.webhooks.prs.v1",
+              "synapse.webhooks.example-echo-ping.v1",
+              "synapse.webhooks.example-notifier-ticket.v1"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

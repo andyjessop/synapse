@@ -1,0 +1,1049 @@
+---
+alwaysApply: true
+---
+
+If you are tasked with creating a spec, you should use the following guidelines:
+
+# Instructions for producing an epic technical specification
+
+You are writing a high-calibre engineering specification for a complex software system. The output should be detailed enough that a senior engineer could implement it, a tech lead could review it, and an LLM coding agent with limited world view could execute the implementation plan task by task.
+
+The spec must not be a vague architecture overview. It must define concepts, boundaries, contracts, runtime behavior, implementation tasks, testing expectations, and non-goals with enough precision to prevent ambiguity.
+
+## No implementer discretion (required)
+
+A spec is not done if the reader must still choose architecture, names, or behavior. **Decide everything in the spec** that affects implementation.
+
+The spec must **not** leave decisions to implementers via:
+
+- Optional packages or layers (“add X if needed”, “may use Y”)
+- Alternate APIs (“`foo` or `bar`”, “extend A or introduce B”)
+- Unfrozen names (“names may change”, “illustrative only” for in-scope contracts)
+- Open policy (“fail open unless…”, “add metrics if useful”)
+- Unbounded vocabulary (arbitrary boundary strings, unlisted statuses)
+
+The spec **must** instead include:
+
+- **Exact** package and file paths (create vs modify)
+- **Exact** table/column names or authoritative DDL when persistence is in scope
+- **Exact** public function/type/export names and enums (TypeScript-shaped contracts are required, not forbidden)
+- **Exact** wiring points (which module calls which API)
+- **Exact** failure, ordering, idempotency, and parent/root rules per boundary
+- **Explicit** in-scope vs deferred lists (deferred items are not “TBD at implementation time”)
+
+Use **“Illustrative”** only for vision examples that are **explicitly outside the shipped scope**. Authoritative contracts must be labeled as such and must match the implementation plan tasks.
+
+When comparing designs in the spec, **pick one** and document why in one short paragraph; do not present two equivalent options for the same decision.
+
+## Simplicity and local development (cross-cutting bias)
+
+Treat **simplicity as an active design goal**, not a side effect: prefer the option that removes concepts, reduces moving parts, and keeps the codebase easy to navigate and reason about. When comparing approaches, argue from **least surprise** for a new contributor scanning the repo.
+
+**New technology has a complexity cost.** If a capability truly needs an extra runtime, datastore, broker, SaaS integration, or framework, accept that cost openly—justify it against simpler alternatives already in stack or repo patterns, minimize the integration surface, and document operational impact. Do **not** add tooling or layers “for completeness” without a crisp payoff.
+
+**Local development experience is non-negotiable to optimize for.** Prefer designs that shorten the path from clone to verified behavior: fewer services to run, clearer defaults, better fixture/fake modes, faster feedback loops, and error messages that point to remediation. Heavy local setup needs an explicit payoff in the spec; if it mainly serves production elegance, rethink or defer.
+
+When presenting trade-offs, spell out **who wins locally** (individual developer time, onboarding, debugging) versus **what ships to production**.
+
+---
+
+## 1. Start with the system’s purpose
+
+Begin by clearly stating the goal of the system in plain language.
+
+Explain what the system should feel like when it works. Describe the product or platform experience, not just the technical mechanism.
+
+Include:
+
+```text
+Goal
+Core idea
+Core stack
+Key architectural distinction
+Naming conventions
+Architecture slogan
+Non-negotiables
+```
+
+A strong spec should make the reader understand both:
+
+```text
+What are we building?
+Why must it exist this way?
+```
+
+Use a simple table for the core stack:
+
+```markdown
+| Layer | Technology | Purpose |
+| --- | --- | --- |
+| Event envelope | CloudEvents | Standard identity and metadata |
+| Durable store | Postgres | Canonical runtime memory |
+```
+
+Avoid jumping directly into implementation before establishing the architecture’s spine.
+
+---
+
+## 2. Define the core mental model
+
+Introduce the few central concepts that everything else depends on.
+
+For each concept, define:
+
+```text
+What it is
+What it owns
+What it does not own
+Examples
+How it relates to other concepts
+```
+
+For example:
+
+```text
+Adapter = external IO boundary
+Agent = bounded internal capability
+Event = semantic durable fact
+Trace = execution path
+Metric = measurement
+Audit row = durable operational record
+```
+
+Make important distinctions explicit. Do not rely on naming alone.
+
+Good specs repeatedly reinforce critical boundaries:
+
+```text
+Adapters know how to talk to external systems.
+Agents know why and when the system should do something.
+Postgres is durable memory.
+MQTT is broadcast.
+BullMQ is work execution.
+```
+
+---
+
+## 3. Create a vocabulary and enforce it
+
+A high-quality spec gives names to concepts and then uses those names consistently.
+
+Include a naming convention section if there is any possibility of confusion.
+
+Example pattern:
+
+```text
+libs/runtime-*   shared runtime primitives
+libs/adapter-*   external IO boundaries
+libs/agent-*     bounded product/runtime capabilities
+```
+
+Then explicitly call out confusing pairs:
+
+```text
+runtime-agent = shared agent registry and definition plumbing (not a runnable agent)
+runtime = event-registry owner for platform lifecycle (worker, relay, reactor); not a capability agent
+example-echo = registry name for the example-agent-echo fixture (local curriculum); not production
+```
+
+The spec should prevent future contributors from inventing parallel terminology.
+
+---
+
+## 4. Separate vision from shipped scope
+
+If the system has a long-term vision but the implementation starts smaller, clearly distinguish:
+
+```text
+Vision examples
+Authoritative shipped scope
+Deferred concepts
+Future extensions
+```
+
+Use language like:
+
+```text
+Broader examples elsewhere in this document are vision.
+The authoritative in-scope type list lives in X.
+Do not assume Y exists until it is added to the registry.
+```
+
+This prevents overbuilding and misinterpretation.
+
+A high-calibre spec should repeatedly clarify what is in scope now versus later.
+
+---
+
+## 5. Define architecture through flows, not just diagrams
+
+Include a high-level architecture diagram, but also describe the runtime loop step by step.
+
+Use text diagrams generously:
+
+```text
+External system
+  │
+  ▼
+Adapter
+  │
+  ▼
+Agent ingress
+  │
+  ▼
+ctx.emit(...)
+  │
+  ▼
+Postgres events + outbox
+  │
+  ▼
+MQTT
+  │
+  ▼
+BullMQ queue
+  │
+  ▼
+Agent reactor
+```
+
+Then explain the loop in prose.
+
+A good spec answers:
+
+```text
+Where does data enter?
+Where is it validated?
+Where is it stored?
+Where is it broadcast?
+Where is work executed?
+Where are side effects allowed?
+Where can failures be observed?
+```
+
+---
+
+## 6. Define hard dependency rules
+
+Include a section on allowed and forbidden dependencies.
+
+Use direct, enforceable rules:
+
+```text
+apps → agents → adapters → external systems
+apps → runtime
+agents → runtime
+adapters → runtime only for config/logging/tracing, not events
+```
+
+Then state the implications:
+
+```text
+Adapters do not emit events directly.
+Agents translate external IO into system events.
+Reactors do not import MQTT, BullMQ, Redis, or HTTP frameworks.
+MCP hosts agent surfaces but does not own business behavior.
+```
+
+High-quality specs contain architectural constraints that can later become lint rules or arch tests.
+
+---
+
+## 7. Specify data contracts with code-shaped precision
+
+Whenever there is a central data structure, define it in TypeScript-like form.
+
+For example:
+
+```ts
+type RuntimeEvent<TType extends string, TData> = {
+  id: string;
+  type: TType;
+  source: string;
+  subject?: string;
+  time: string;
+  data: TData;
+  correlationid?: string;
+  causationid?: string;
+  traceparent?: string;
+};
+```
+
+Then define conventions:
+
+```text
+Type format
+Versioning
+Subject format
+Correlation rules
+Causation rules
+Trace propagation rules
+Validation rules
+```
+
+Do not stop at interface definitions. Explain how fields are used operationally.
+
+---
+
+## 8. Make registries concrete
+
+For extensible systems, avoid vague “plugins” or “events can be registered” language.
+
+Define the registry as a concrete runtime object.
+
+Example:
+
+```ts
+export const eventRegistry = {
+  'thing.happened.v1': {
+    category: 'signal',
+    owner: 'agent-example',
+    schema: thingHappenedSchema,
+  },
+} as const;
+```
+
+Explain that the registry is the source of truth for:
+
+```text
+validation
+ownership
+typing
+documentation generation
+category lookup
+event filtering
+MCP/tool exposure
+```
+
+A strong spec prefers one authoritative registry over duplicated metadata.
+
+---
+
+## 9. Distinguish semantic events from observability
+
+Do not collapse every occurrence into an event stream.
+
+Define separate channels:
+
+```text
+Events   = durable semantic facts
+Traces   = execution paths
+Metrics  = counts, rates, durations, lag
+Logs     = debugging detail
+Audit    = durable operational records
+```
+
+For each channel, describe:
+
+```text
+What belongs there
+What does not belong there
+Examples
+Questions it answers
+Storage/backend
+Join keys
+```
+
+Include a “promotion rule” for deciding whether something deserves to become an event:
+
+```text
+Would another agent react to this?
+Would an operator want it in a timeline?
+Would we replay from it?
+Is it meaningful history?
+Is it a state transition rather than a step?
+```
+
+This is one of the strongest patterns in the provided spec: it protects the system from event-stream pollution.
+
+---
+
+## 10. Define lifecycle events selectively
+
+If the system has operational lifecycle events, explain that they are semantic state transitions, not trace dumps.
+
+For each lifecycle family, include:
+
+```text
+Recommended events
+Possible later events
+Events to avoid
+Produced by
+Consumed by
+Useful for answering
+Example payload
+```
+
+Example structure:
+
+```markdown
+### Adapter lifecycle
+
+Recommended events:
+adapter.connected.v1
+adapter.degraded.v1
+adapter.auth_failed.v1
+
+Avoid:
+adapter.http.request.started.v1
+adapter.http.request.succeeded.v1
+
+Those belong in traces, metrics, logs, or audit rows.
+```
+
+A high-quality spec explains both what to emit and what not to emit.
+
+---
+
+## 11. Define each major subsystem with responsibilities and exclusions
+
+For every subsystem, include:
+
+```text
+Responsibilities
+Non-responsibilities
+Examples
+Public API or type shape
+Test/fake requirements
+Relationship to other subsystems
+```
+
+Useful subsystem sections include:
+
+```text
+Adapters
+Agents
+Ingress
+Reactors
+Event relay
+Queue runtime
+Store
+MCP
+Replay
+Views/projections
+Observability
+Local development
+```
+
+Every section should reduce implementation ambiguity.
+
+---
+
+## 12. Describe runtime guarantees
+
+State delivery, ordering, idempotency, replay, and failure guarantees explicitly.
+
+For example:
+
+```text
+The system provides at-least-once delivery.
+It does not promise exactly-once execution.
+Duplicate delivery can happen because...
+Therefore every ingress emission must define...
+```
+
+Include practical rules:
+
+```text
+Ingress dedupe key = source + external_id
+BullMQ job ID = event.id + agentName + reactorName
+Events preserve causality with correlationid and causationid
+Side-effecting adapters must be guarded during replay
+```
+
+A high-calibre spec is honest about distributed-system guarantees.
+
+---
+
+## 13. Specify local-first operation
+
+If local development matters, make it a first-class product requirement.
+
+Define:
+
+```text
+Required local services
+Expected commands
+No-credential happy path
+Fixture mode behavior
+Doctor/health checks
+Verification / CLI behavior
+Debugging expectations
+```
+
+Example:
+
+```text
+npm install
+npm run dev:infra
+npm run dev:infra:doctor
+npm run dev
+npm run dev:once -- --fixture example/echo
+```
+
+Then define what each command must do.
+
+The best specs make local execution verifiable, not aspirational.
+
+Specs should tie local-first ergonomics back to **Simplicity and local development**: the fewer parallel processes and credentials a contributor needs for the default path, the better.
+
+---
+
+## 14. Include end-to-end examples
+
+Provide concrete flows through the system.
+
+For each flow, include:
+
+```text
+Step-by-step runtime path
+Events produced
+Traces produced
+Metrics produced
+Audit records produced
+Final observable result
+```
+
+Example format:
+
+```text
+Jira issue gets label
+  → adapter verifies payload
+  → agent ingress emits signal
+  → Postgres appends event
+  → outbox publishes to MQTT
+  → worker enqueues BullMQ job
+  → reactor emits outcome
+```
+
+Then list associated observability:
+
+```text
+Event log:
+  jira.ticket.tagged.v1
+  enrichment.produced.v1
+
+Traces:
+  ingress → append → outbox → MQTT → BullMQ → reactor
+
+Audit:
+  agent_runs
+```
+
+This helps readers connect abstract architecture to implementation reality.
+
+---
+
+## 15. Include database responsibilities and table semantics
+
+If the system uses durable storage, define each table’s role.
+
+For each table:
+
+```text
+Purpose
+What it stores
+Whether it is append-only
+Ownership
+How it relates to events, queues, replay, or audit
+```
+
+Example:
+
+```text
+events
+  Append-only semantic event log.
+  Stores CloudEvent envelope, category, owner, subject, external ID, traceparent.
+
+event_outbox
+  Durable publish queue for MQTT.
+  Stores event ID, publish status, attempt count, last error.
+```
+
+Call out intentional denormalization when it matters.
+
+Example:
+
+```text
+category is denormalized at write time so historical meaning is preserved even if the registry changes.
+```
+
+---
+
+## 16. Define query, filtering, and views
+
+For systems that expose history or runtime inspection, define a shared filter shape.
+
+Example:
+
+```ts
+export type EventFilter = {
+  types?: EventType[];
+  categories?: EventCategory[];
+  owners?: AgentName[];
+  subjects?: string[];
+  since?: string;
+  until?: string;
+  limit?: number;
+};
+```
+
+Then specify where it is reused:
+
+```text
+MCP
+CLI
+console
+replay planning
+tests
+live streams
+```
+
+Define boundary semantics:
+
+```text
+since is inclusive
+until is exclusive
+```
+
+High-quality specs avoid different filtering semantics in different parts of the system.
+
+---
+
+## 17. Treat replay as a first-class design concern
+
+If replay matters, define it early even if advanced replay is deferred.
+
+Include:
+
+```text
+Replay source of truth
+Replay modes
+Default behavior
+Side-effect policy
+Traceability of replayed runs
+Operator API
+Testing expectations
+```
+
+Example:
+
+```text
+Replay reads from Postgres, never MQTT.
+Replay defaults to dry_run.
+Execute mode sets ctx.run.replay = true.
+External mutations short-circuit by default during replay.
+```
+
+Replay is where many event architectures become unsafe. A strong spec makes replay behavior explicit.
+
+---
+
+## 18. State side-effect policy
+
+Be very clear about where external mutation is allowed.
+
+Define:
+
+```text
+What counts as a side effect
+Which layer performs it
+Which layer decides to perform it
+How idempotency is handled
+What happens during replay
+How failures are surfaced
+```
+
+Example:
+
+```text
+Adapters perform external IO.
+Agents decide when IO should happen.
+Adapters do not decide business policy.
+Replay defaults to no external mutation.
+```
+
+---
+
+## 19. Provide an ordered implementation plan
+
+The implementation plan should be one of the most detailed parts of the spec.
+
+For each task, include:
+
+```text
+Task name
+Packages/files/apps to create or modify
+Deliverables
+Acceptance criteria
+Required tests
+Dependencies on prior tasks
+Out-of-scope items
+Migration notes if applicable
+```
+
+Use a dependency graph:
+
+```text
+1 local infra
+2 event contracts
+3 observability
+4 store + outbox
+5 registry
+...
+```
+
+Each task should be independently reviewable and testable.
+
+A strong task definition looks like:
+
+```markdown
+### Task N: Runtime event contracts
+
+Create:
+libs/runtime-events
+
+Deliver:
+- envelope schema
+- event registry
+- topic codec
+- filter function
+
+Acceptance criteria:
+- every exported shape has one Zod schema
+- invalid event versions fail validation
+- topic conversion is bijective
+
+Required tests:
+- unit test schemas
+- unit test topic codec
+- integration test JSON round trip
+```
+
+---
+
+## 20. Define “done” globally
+
+Before listing tasks, include a task definition of done.
+
+Example:
+
+```text
+A task is not done until:
+- unit tests cover schemas, branching, codecs, and error handling
+- integration tests cover the runtime path
+- tests use fixtures/fakes/local services, not live third-party APIs
+- lint, typecheck, and test pass
+- local verification command is documented
+```
+
+This raises the quality bar across the whole plan.
+
+---
+
+## 21. Include migration guidance
+
+If the spec changes an existing codebase, include a migration map.
+
+Example:
+
+```text
+libs/service-jira → libs/adapter-jira
+libs/automation-x/src/runtime.ts → libs/agent-x/src/reactor.ts
+CLI entry point → emits event instead of calling pipeline directly
+```
+
+State what must continue to work during migration.
+
+Example:
+
+```text
+Existing CLI continues to work during Task 9.
+Task 10 rewires it into the runtime.
+```
+
+This prevents “big bang” rewrites.
+
+---
+
+## 22. Add architectural tests as acceptance criteria
+
+For critical boundaries, require tests that scan or enforce architecture.
+
+Examples:
+
+```text
+Adapters cannot import runtime-events.
+Reactors cannot import MQTT, BullMQ, Redis, or HTTP frameworks.
+Only the event relay can publish normal runtime events to MQTT.
+Agents cannot claim events owned by another agent.
+```
+
+This converts architectural intent into enforceable checks.
+
+---
+
+## 23. Authoritative contracts vs illustrative vision
+
+Every spec must contain a clearly labeled **authoritative** block (or equivalent labeling throughout the document) that lists exact names, contracts, and behavior implementers must follow.
+
+When giving examples, distinguish clearly:
+
+```text
+Authoritative shipped scope (implement exactly)
+Deferred / future hardening (out of shipped scope)
+Illustrative vision only (not a contract)
+```
+
+Required phrasing patterns:
+
+```text
+Authoritative (shipped scope): …
+Deferred until <follow-up spec/task>: …
+Illustrative vision (not shipped): …
+```
+
+Do **not** label in-scope table names, API names, enums, or wiring as “illustrative” or “conceptual only”. Those belong in the authoritative shipped scope section.
+
+Vision examples are allowed only when they cannot be mistaken for implementable contracts.
+
+---
+
+## 24. Include non-goals
+
+End with a clear list of what not to do.
+
+Good non-goals prevent scope creep.
+
+Example:
+
+```text
+Do not start with Kafka.
+Do not make MQTT responsible for replay.
+Do not make every helper call an event.
+Do not model ingress as a DSL before ctx.emit is proven.
+Do not allow normal runtime events to bypass Postgres.
+```
+
+Non-goals should be specific, opinionated, and tied to likely temptations.
+
+---
+
+## 25. End with a core contract summary
+
+Finish with a compressed version of the whole architecture.
+
+Example:
+
+```text
+Adapters adapt the outside world.
+Agents own capabilities.
+Ingress is ordinary code.
+ctx.emit is the strict event boundary.
+Postgres remembers.
+MQTT broadcasts.
+BullMQ runs work.
+OpenTelemetry explains execution.
+MCP exposes APIs.
+```
+
+This gives the reader a durable mental model.
+
+---
+
+# Quality bar for the generated spec
+
+The final spec should satisfy the following standard:
+
+## It must be implementable
+
+A coding agent should be able to start from Task 1 and work through the plan without inventing major architecture.
+
+## It must be testable
+
+Every important behavior should have unit, integration, or manual verification requirements.
+
+## It must be bounded
+
+The spec should distinguish shipped scope, future hardening, non-goals, and deferred capabilities.
+
+## It must be internally consistent
+
+Names, concepts, categories, event types, ownership, and task scopes should not contradict each other.
+
+## It must be operational
+
+The spec should explain how to run, inspect, debug, replay, and verify the system locally.
+
+## It must be architectural, not just procedural
+
+It should explain why boundaries exist, not only what files to create.
+
+---
+
+# Reusable LLM prompt template
+
+You can give the following to an LLM when asking it to produce a spec of this calibre.
+
+```markdown
+You are a senior principal engineer and technical spec writer.
+
+Produce a detailed implementation-grade architecture specification from the requirements below.
+
+The spec must be suitable for:
+- senior engineering review;
+- implementation by a coding agent;
+- phased delivery through pull requests;
+- local-first development and testing;
+- future maintainability.
+
+Do not produce a vague overview. Produce a concrete, internally consistent, implementation-ready spec.
+
+Use the following structure unless the domain clearly requires changes:
+
+1. Goal
+   - Describe the product/runtime goal in plain language.
+   - Explain what the system should feel like when working.
+   - Include core stack, key distinctions, naming conventions, architecture slogan, and non-negotiables.
+
+2. Core model
+   - Define the central concepts.
+   - Explain ownership boundaries.
+   - Define what each concept owns and does not own.
+   - Include examples.
+
+3. Architecture
+   - Show the high-level architecture using text diagrams.
+   - Describe the runtime loop step by step.
+   - Define dependency direction and forbidden dependencies.
+   - Explain local-first requirements.
+
+4. Data and contract model
+   - Define core data structures using TypeScript-like types.
+   - Define schemas, registries, validation, ownership, versioning, naming, and conversion rules.
+   - Use one authoritative registry wherever possible.
+
+5. Observability model
+   - Separate semantic events, traces, metrics, logs, and audit records.
+   - Define what belongs in each channel.
+   - Include promotion rules for deciding whether something should become an event.
+
+6. Subsystem design
+   - For each subsystem, define responsibilities, non-responsibilities, APIs, examples, and tests.
+   - Include adapters, agents, ingress, queues/workers, store, relay, MCP/API surface, replay, projections/views, and side effects where relevant.
+
+7. Runtime guarantees
+   - Define delivery guarantees, idempotency, replay behavior, ordering expectations, failure behavior, and side-effect safety.
+   - Be explicit about what the system does not guarantee.
+
+8. Storage model
+   - Define required tables or durable stores.
+   - Explain what each stores and why.
+   - Include audit/run records where relevant.
+
+9. Query/views/replay model
+   - Define filtering/query shapes.
+   - Define historical views, projections, live views, and replay behavior.
+
+10. End-to-end flows
+   - Include at least two concrete flows through the system.
+   - For each, show events, traces, metrics, logs, and audit records produced.
+
+11. Implementation plan
+   - Break the build into ordered tasks.
+   - For each task include:
+     - packages/files/apps to create or modify;
+     - deliverables;
+     - acceptance criteria;
+     - required unit tests;
+     - required integration tests;
+     - local end-to-end verification;
+     - out-of-scope items.
+   - Include a dependency graph between tasks.
+
+12. Definition of done
+   - Define global quality gates for every task.
+   - Include lint, typecheck, test, coverage, fixture/fake requirements, and local verification requirements.
+
+13. Future hardening
+   - List useful capabilities that are intentionally outside shipped scope.
+
+14. Non-goals
+   - List concrete things not to do.
+
+15. Core contract summary
+   - End with a concise summary of the architectural spine.
+
+Style requirements:
+- Default to the **simplest** design that meets the stated shipped-scope requirements; call out when added technology or abstraction is worth its cost.
+- **Local dev** must stay a first-class concern: document the leanest credible path to run and verify the system.
+- Be precise and opinionated: **make the decision**, do not list options for the implementer.
+- Use concrete names for all in-scope contracts (packages, tables, columns, exports, boundaries).
+- Use tables and text diagrams where helpful.
+- Use TypeScript-like types for contracts.
+- Use examples liberally.
+- Clearly label shipped scope versus future vision.
+- Include negative guidance: what not to emit, not to model, not to couple, not to build yet.
+- Every public boundary must have validation and tests.
+- Every implementation task must be independently reviewable and verifiable.
+- Avoid generic statements unless backed by concrete consequences.
+- Do not invent broad future capabilities unless they are marked as deferred.
+
+Input requirements:
+[PASTE PRODUCT GOAL, EXISTING CODEBASE CONTEXT, TECH STACK, CONSTRAINTS, AND DESIRED SHIPPED SCOPE HERE]
+```
+
+---
+
+# Checklist the LLM should run before finalizing the spec
+
+Use this as a self-review pass.
+
+```markdown
+## Conceptual consistency
+- Are the core concepts defined once and used consistently?
+- Are confusing names explicitly disambiguated?
+- Is shipped scope separated from future vision?
+- Are there contradictions between examples and authoritative lists?
+
+## Boundary clarity
+- Is it clear which layer owns behavior?
+- Is it clear which layer owns external IO?
+- Are forbidden dependencies stated?
+- Could an architecture test enforce the critical boundaries?
+
+## Contract precision
+- Are central data structures specified?
+- Are schemas and registries authoritative?
+- Are versioning and naming rules explicit?
+- Are validation responsibilities clear?
+- Are in-scope package names, table names, function names, and enums fixed (no “implementer choice”)?
+- Is there a single chosen design per decision (no equivalent options left open for the same choice)?
+
+## Runtime behavior
+- Is the full loop described from ingress to durable store to broadcast to work execution to follow-up event?
+- Are failure paths described?
+- Are idempotency rules explicit?
+- Are replay rules explicit?
+
+## Observability
+- Are events, traces, metrics, logs, and audit records separated?
+- Are join keys defined?
+- Are there examples of what should not become an event?
+- Can an operator debug the system locally?
+
+## Implementation readiness
+- Is there an ordered task plan?
+- Does each task have deliverables, acceptance criteria, and tests?
+- Are local commands and verification flows defined?
+- Are migrations from existing code explained?
+
+## Scope control
+- Are future hardening items separated?
+- Are non-goals concrete?
+- Is the shipped scope small enough to build?
+
+## Simplicity and local development
+- Does the design prefer fewer components and clearer ownership over theoretical generality?
+- Is every new technology or service justified against a simpler option, with integration kept minimal?
+- Is the local happy path short, documented, and verifiable (commands, fixtures, verification), with heavy setup only when unavoidable?
+```

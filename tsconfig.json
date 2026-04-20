@@ -1,0 +1,60 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "runtime-agent": ["libs/runtime-agent/src/index.ts"],
+      "runtime-manifest": ["libs/runtime-manifest/src/index.ts"],
+      "runtime-agent-sqlite": ["libs/runtime-agent-sqlite/src/index.ts"],
+      "adapter-gitlab": ["libs/adapter-gitlab/src/index.ts"],
+      "agent-reviewer": ["agents/agent-reviewer/src/index.ts"],
+      "example-agent-echo": ["examples/agents/example-agent-echo/src/index.ts"],
+      "runtime-config": ["libs/runtime-config/src/index.ts"],
+      "runtime-events": ["libs/runtime-events/src/index.ts"],
+      "runtime-llm": ["libs/runtime-llm/src/index.ts"],
+      "runtime-observability": ["libs/runtime-observability/src/index.ts"],
+      "pi-harness": ["libs/pi-harness/src/index.ts"],
+      "runtime-store": ["libs/runtime-store/src/index.ts"],
+      "runtime-worker": ["libs/runtime-worker/src/index.ts"],
+      "dev-cli-shared": ["libs/dev-cli-shared/src/index.ts"],
+      "dev-once": ["libs/dev-once/src/index.ts"],
+      "dev-tooling": ["libs/dev-tooling/src/index.ts"],
+      "synapse-fixtures": ["libs/synapse-fixtures/src/index.ts"]
+    }
+  },
+  "include": [
+    "apps/worker/src/**/*.ts",
+    "libs/adapter-gitlab/src/**/*.ts",
+    "libs/pi-harness/src/**/*.ts",
+    "apps/webhooks/src/**/*.ts",
+    "libs/runtime-agent/src/**/*.ts",
+    "libs/runtime-manifest/src/**/*.ts",
+    "libs/runtime-agent-sqlite/src/**/*.ts",
+    "libs/runtime-worker/src/**/*.ts",
+    "libs/runtime-store/src/**/*.ts",
+    "libs/dev-cli-shared/src/**/*.ts",
+    "libs/dev-once/src/**/*.ts",
+    "libs/dev-tooling/src/**/*.ts",
+    "libs/synapse-fixtures/src/**/*.ts",
+    "libs/runtime-events/src/**/*.ts",
+    "libs/runtime-observability/src/**/*.ts",
+    "agents/agent-reviewer/src/**/*.ts",
+    "examples/agents/example-agent-echo/src/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/coverage/**",
+    "**/test/**",
+    "**/*.test.ts",
+    "apps/client/**"
+  ]
+}

@@ -1,0 +1,32 @@
+---
+description: Monorepo layout, naming, and package boundaries
+alwaysApply: true
+---
+
+# Monorepo layout and naming
+
+## Scope and package names
+
+- Use **unscoped** workspace package names (`agent-reviewer`, `example-agent-echo`, `worker`, `runtime-events`, …).
+- Discover projects with **per-package `package.json` scripts** (Nx infers targets). Do **not** add `project.json` under `apps/` or `libs/`.
+- Declare **all npm dependencies at the repo root** only; workspace packages do not list `dependencies` / `devDependencies` (see **npm-packages-root-hoist** rule).
+
+## Folder prefixes
+
+| Prefix | Role |
+| --- | --- |
+| `agents/*` | **Application** capability agents shipped with the product (e.g. `agent-reviewer`). |
+| `examples/agents/*` | Reference/example agents (`example-agent-*` packages). Not loaded by default `npm run dev`. Load via **`manifests/examples/*.json`** (`npm run dev:example` or `npm run dev -- --manifest …`) + **`npm run dev:once`**. Examples without HTTP routes are verified through lower-level package/integration tests until a typed webhook route exists. Integration tests still run in the main CI test suite. |
+| `manifests/` | Runtime manifest JSON (`application.json`, `examples/`, `debug/`) — authoritative agent registration for worker/dev. |
+| `examples/fixtures/*` | Static fixtures for example agents. |
+| `libs/agent-test-harness` | Shared Postgres/Redis/worker harness for agent e2e tests (`agents/*` and `examples/agents/*`). |
+| `apps/automation-*` | Runnable LLM automations (thin entry: CLI args, config, wiring, exit codes). |
+| `libs/automation-*` | Deprecated automation compatibility shims only when explicitly needed during migration. |
+| `libs/service-*` | Deprecated service compatibility shims only when explicitly needed during migration. |
+| `libs/shared-*` | Cross-automation shared types/utilities only; not automation-specific artifacts. |
+
+## Tests and fixtures
+
+- **Shared static fixtures** (JSON, Markdown, synthetic payloads) live under repo-root **`fixtures/`**, grouped by owner (e.g. `fixtures/agent-reviewer/`, `fixtures/llm-blurb/`). Reference them with repo-root-relative paths or `getRepoRoot()` from `runtime-config`.
+- **Test harness code** (fakes, builders) may stay next to the tests that use them (e.g. `apps/client/test/fixtures/*.ts`).
+- Resolve package roots in tests with **`import.meta.url` + `fileURLToPath`**, not `process.cwd()` alone.

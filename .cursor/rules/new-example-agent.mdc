@@ -1,0 +1,32 @@
+---
+description: Example/reference agents under examples/agents (curriculum, not production)
+globs: examples/agents/**/*
+alwaysApply: false
+---
+
+# New example agent
+
+For teaching and regression under `examples/agents/<name>/`. **Not** for product capabilities — those use `agents/` and the **new-agent** rule.
+
+## Non-negotiables
+
+Same bar as application agents for local dev and CI:
+
+1. **Fixture file (when HTTP ingress exists)** — add `examples/fixtures/<agent>/…fixture.json` and list its path under `agents[].fixtures` in an example manifest (e.g. `manifests/examples/echo.json`). Use **`npm run dev -- --manifest manifests/examples/<name>.json`** then **`npm run dev:once -- --fixture example/<slug>`**.
+2. **Fixture mocks** when the agent uses external I/O (fixtures under `examples/fixtures/<name>/` or repo `fixtures/` only when shared).
+3. **Unit tests** in `test/unit/`.
+4. **Integration tests** in `test/integration/*.e2e.test.ts` using `agent-test-harness` — these **run in the main suite** (`npx nx run-many -t test --all`), typically `describe.skipIf(!integrationInfraAvailable)`.
+
+## Must not
+
+- Register in `manifests/application.json` or rely on default `npm run dev` without adding production agents.
+- Import from `apps/*` or queue/HTTP frameworks from agent packages.
+
+## Must do
+
+- Package name: `example-agent-<name>`.
+- Add a manifest under `manifests/examples/` with `handler` under `examples/agents/…` and matching `handles`.
+- Document in `examples/agents/README.md` curriculum table.
+- Verify: `npx nx run example-agent-<name>:test`, and **`npm run dev:once -- --fixture example/<slug>`** after starting dev with the matching manifest.
+
+Reference: `examples/agents/agent-notifier/`.

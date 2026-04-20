@@ -1,0 +1,11 @@
+drop table if exists event_outbox cascade;
+drop table if exists runtime_capture_records cascade;
+drop table if exists runtime_capture_payloads cascade;
+drop table if exists ingress_cursors cascade;
+drop table if exists outbox_attempts cascade;
+drop table if exists projection_recent_activity cascade;
+drop table if exists projection_subject_timeline cascade;
+drop table if exists projection_agent_health cascade;
+drop table if exists mcp_tool_invocations cascade;
+alter table events drop column if exists traceparent;
+alter table events drop column if exists tracestate;

@@ -1,0 +1,28 @@
+---
+description: Before handoff, verify and update README.md files affected by the change
+alwaysApply: true
+---
+
+# README sync after substantive changes
+
+When work is **otherwise complete**—before treating the task as done—if the change touched **executable behavior, public APIs, CLI flags/env, project layout, or how a package is run or configured**, also verify that **relevant `README.md` files stay accurate**.
+
+## Which READMEs count as relevant
+
+- **`README.md` at the repo root** when the change affects repo-wide setup, scripts, or top-level workflows.
+- **`README.md` in each touched workspace package** (`apps/*`, `libs/*`, or other documented roots) when that package’s behavior, commands, or integration story changed.
+- If a change spans multiple packages, check **each** affected package’s README (or add a short cross-link if ownership is documented elsewhere).
+
+## What to do
+
+1. **Skim** those READMEs against the actual code, scripts, and env the user would follow today.
+2. If instructions, examples, directory layout, or prerequisites are **wrong or missing**, **edit the README** in the same change (or follow-up commit in the same session) so they match reality.
+3. Keep updates **minimal and accurate**—fix drift and gaps; do not rewrite unrelated sections or add marketing-style prose.
+
+## When to skip
+
+- **Pure exploration** with no edits, or changes limited to comments/tests with **no user-facing contract change** and no README claims contradicted.
+- **README-only** edits where you already updated the file as the task.
+- If the user **explicitly** asks not to touch docs for that turn.
+
+This complements **post-task-verify-scripts**: README checks are documentation verification, not a substitute for lint, typecheck, or tests.

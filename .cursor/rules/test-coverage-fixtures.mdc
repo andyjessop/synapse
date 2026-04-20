@@ -1,0 +1,36 @@
+---
+description: Tests for behavior changes; bug fixes need regression tests (prefer integration); colocated fixtures, no live external APIs
+alwaysApply: true
+---
+
+# Test coverage: unit, integration, and fixtures
+
+## Non-negotiable bar
+
+**If code can be tested, it must be tested.** Treat untested new or changed behavior as incomplete work. Do not ship logic, boundaries, or wiring with only manual verification.
+
+- **Unit tests**: Exercise pure functions, validators, schemas, parsing, branching, and small modules in isolation. Prefer fast, deterministic cases (happy paths, edge cases, failure modes).
+- **Integration tests**: Exercise realistic **composition**—CLI entrypoints, filesystem/repo layout handling, pipeline stages, and how modules work together—still **without** calling real third-party services.
+
+## Integration tests and external systems
+
+**Default: no live network calls to real APIs** (Jira, GitHub, cloud providers, customer tenants, etc.) in automated tests. Integration coverage must use **in-repo fixtures**, fakes, stubs, or synthetic files under the owning package.
+
+- **Shared static fixtures** belong under repo-root `fixtures/<owner>/` (see monorepo layout). Colocate only test-harness TypeScript (fakes, builders) with the owning package when not shared.
+- **Reuse and extend** existing fixture trees (e.g. synthetic repos, JSON artifacts) before introducing new ways to hit the network.
+- If a rare case truly requires a live environment, that must be an **explicit, documented exception** (separate target or opt-in), not the default path for `npx nx run-many -t test --all`.
+
+## Bug fixes (regression tests)
+
+Treat **bug fixes** as incomplete until they ship an automated test that **would have failed before the fix** and **passes after**. That is mandatory, not optional.
+
+- **Prefer integration tests** when the bug showed up through composed behavior (CLI, pipeline stages, filesystem/repo layout, wiring between modules).
+- **Unit tests are fine** when the defect was localized to pure logic, parsing, validation, or a small module and a focused unit test clearly reproduces the failure.
+
+If a regression test is genuinely infeasible (extremely rare), say so explicitly in the change and why—do not silently skip tests.
+
+## When you touch code
+
+For any change that affects executable behavior or I/O contracts: add or update **both** layers where they apply—**unit** for the changed logic, **integration** for the end-to-end path that users or callers rely on—using fixtures so CI stays hermetic and repeatable.
+
+This rule complements **post-task-verify-scripts**: green lint/typecheck/test is expected after substantive changes.

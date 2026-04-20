@@ -1,0 +1,26 @@
+---
+description: Zod schemas and strict validation at every network and I/O boundary
+alwaysApply: true
+---
+
+# Types and boundaries: Zod first
+
+This repo has many **network and I/O boundaries** (HTTP, CLI, env, webhooks, queues, third-party APIs). Incorrect or drifting shapes there break production. Treat boundary discipline as non-negotiable.
+
+## Principles
+
+- **Zod is the default for data shapes** that enter or leave the process, persist, or come from untrusted or versioned sources. Define a **schema**, then derive TypeScript types with `z.infer<typeof Schema>` (or equivalent) so runtime checks and static types stay one definition.
+- **Validate at the boundary**: `parse` / `safeParse` (or structured error mapping) as soon as data crosses the boundary—before domain logic assumes the shape. Do not rely on `as` casts or unchecked `JSON.parse` / response bodies / `process.env` for those payloads.
+- **Prefer shape checking over assumptions**: if a value’s structure matters, express it in Zod (objects, unions, discriminated unions, refinements). Use `.strict()`, `.strip()`, or explicit unknown-key handling where accidental extra/missing fields should fail fast.
+- **TypeScript-only types** are fine for purely internal, constructed-in-process values that never cross a boundary unchanged—but avoid maintaining a **parallel** hand-written interface for the same payload Zod already describes.
+
+## Patterns to avoid
+
+- Duplicating “DTO interfaces” separate from the schema that actually validates them.
+- Widening external input to `unknown` then narrowing with assertions instead of schemas.
+- Validating only in tests or only in OpenAPI docs without runtime checks on the same shapes.
+
+## Stack alignment
+
+- HTTP APIs: keep route/request/response validation aligned with OpenAPI from the same Zod definitions (see **api-hono-openapi**).
+- New boundaries (tools, automations, services): add schemas and validation at the edge before reusing shared libs.

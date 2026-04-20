@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
+  "name": "debug-reviewer-only",
+  "agents": [
+    {
+      "name": "agent-reviewer",
+      "handler": "agents/agent-reviewer/src/review-pr-agent.ts",
+      "handles": ["pr.received.v1"],
+      "fixtures": {
+        "webhook": [],
+        "adapter": [
+          "fixtures/agent-reviewer/adapters/gitlab-fetch-changes-synapse.json",
+          "fixtures/agent-reviewer/adapters/pi-review-synapse.json"
+        ]
+      }
+    }
+  ],
+  "webhooks": {
+    "routes": ["synapse.webhooks.prs.v1"]
+  }
+}
