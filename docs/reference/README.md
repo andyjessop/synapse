@@ -15,7 +15,7 @@ Reference pages list exact commands, environment variables, contracts, and APIs.
 ## Start here
 
 - [Commands](commands.md)
-- [Runtime manifest](runtime-manifest.md) — agent registration, dev session, handlers
+- [Runtime manifest](runtime-manifest.md) — agent mounts, shipped definitions, scenarios
 - [Agents](agents.md)
 - [Environment](environment.md)
 - [Package map](package-map.md)
@@ -32,3 +32,5 @@ Reference pages list exact commands, environment variables, contracts, and APIs.
 - [runtime-registry.md](runtime-registry.md)
 - [storage-schema.md](storage-schema.md)
 - [observability.md](observability.md)
+- [fixtures.md](fixtures.md)
+- [typescript.md](typescript.md)

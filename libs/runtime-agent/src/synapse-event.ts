@@ -7,5 +7,7 @@ export type SynapseEvent<TData = unknown> = {
   data: TData;
   rootId: string;
   parentId?: string;
+  traceparent?: string;
+  tracestate?: string;
   createdAt: string;
 };

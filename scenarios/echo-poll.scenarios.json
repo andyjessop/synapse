@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/scenario/run-loop.v1.schema.json",
+  "scenarios": [
+    {
+      "id": "example/echo-poll",
+      "title": "Example echo poll",
+      "description": "First poll returns no candidates; second poll emits one ping",
+      "manifests": ["example-echo-poll"],
+      "ingress": {
+        "source": "synapse.poll.example-in-memory-heartbeat.v1",
+        "fixtures": [
+          { "file": "fixtures/example-agent-echo/poll-candidates-empty.json" },
+          { "file": "fixtures/example-agent-echo/poll-candidates-one.json" }
+        ]
+      },
+      "terminalEventTypes": ["example.pong.v1"]
+    }
+  ]
+}

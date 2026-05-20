@@ -4,9 +4,9 @@ Reference agents for learning and regression. **Not loaded by default `npm run d
 
 | Package | What it exercises |
 | --- | --- |
-| `example-agent-echo` | Minimal handler + HTTP ping (`manifests/examples/echo.json`) |
+| `example-agent-echo` | Minimal handler + HTTP ping (`manifests/examples/echo.json`, `scenarios/echo.scenarios.json`) |
 | `example-agent-notifier` | Webhook-shaped ingress, ticket opened → notified |
-| `example-agent-pipeline` | Multi-step chains (`defineAgent` curriculum; not on default dev manifest) |
+| `example-agent-pipeline` | Multi-step chains (not on default dev manifest) |
 | `example-agent-splitter` | Fan-out |
 | `example-agent-dialogue` | Two agents on one trace |
 | `example-agent-sqlite-counter` | Per-agent SQLite: two taps, same `ping_token` → `count_after` 1 then 2 |
@@ -20,24 +20,24 @@ npm run dev:example
 # or: npm run dev -- --manifest manifests/examples/echo.json
 
 npm run dev:once -- --list
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario example/echo
 ```
 
-Same as echo-only (only `example/echo` is registered there today):
+Echo-only manifest:
 
 ```bash
-npm run dev -- --manifest manifests/examples/all.json
-npm run dev:once -- --fixture example/echo
+npm run dev -- --manifest manifests/examples/echo.json
+npm run dev:once -- --scenario example/echo
 ```
 
-Use **`npx nx run example-agent-<name>:test`** for lower-level package/integration coverage when no webhook route and `agents[].fixtures` entry exist yet. Use **`withTestDevServer`** + **`runDevOnce`** once HTTP fixtures are wired.
+Use **`npx nx run example-agent-<name>:test`** for package tests. Use **`withTestDevServer`** + **`runDevOnce({ scenarioId })`** with **`shippedAgents`** and **`knownEventTypes`** once HTTP scenarios are wired.
 
 ## Manifests
 
-| File | Agents |
-| --- | --- |
-| `manifests/examples/echo.json` | `example-echo` |
-| `manifests/examples/all.json` | `example-echo` with `example/echo` fixture allowlist |
+| File | Agents | Scenarios |
+| --- | --- | --- |
+| `manifests/examples/echo.json` | `example-echo` | `scenarios/echo.scenarios.json` |
+| `manifests/examples/echo-poll.json` | `example-echo` | poll curriculum |
 
 Authoritative manifest docs: [docs/reference/runtime-manifest.md](../../docs/reference/runtime-manifest.md).
 
@@ -51,8 +51,8 @@ npx nx run example-agent-notifier:test
 npx nx run example-agent-sqlite-counter:test
 ```
 
-Static fixtures: `examples/fixtures/<package>/` (application fixtures stay under repo-root `fixtures/`).
+Static payloads: `examples/fixtures/<package>/`. Scenarios: `scenarios/`.
 
-**Handler vs ingress:** the worker runs the **default-export handler** from the manifest `handler` path; `src/ingress.ts` only emits the first signal (webhooks or tests).
+**Definitions:** each example ships **`defineAgent`** in `*-agent.definition.ts` and is listed in **`apps/worker/src/shipped-agents.ts`**. Manifests mount **`agents[].name`** only.
 
 Canonical topology: [docs/reference/agents.md](../../docs/reference/agents.md).

@@ -1,13 +1,13 @@
 ---
-description: Synapse Run Loop — manifest, dev:once fixtures, run artifact proofs
+description: Synapse Run Loop — manifest, dev:once scenarios, run artifact proofs
 globs:
   - agents/**
   - examples/agents/**
   - manifests/**
+  - scenarios/**
   - fixtures/**
   - examples/fixtures/**
   - libs/dev-once/**
-  - libs/synapse-fixtures/**
   - scripts/dev-once/**
 ---
 
@@ -15,12 +15,12 @@ globs:
 
 When changing Synapse agent behavior:
 
-1. Identify the runtime manifest that loads the agent.
-2. Start the runtime first: `npm run dev -- --manifest <path>` (local) or `startTestDevServer` / `withTestDevServer` (tests).
-3. Identify or create a fixture listed under that agent in the manifest (`agents[].fixtures`).
-4. Run one ingress proof: `npm run dev:once -- --fixture <id>` or `runDevOnce({ fixtureId, env })` with the same env as the test server.
-5. Never pass `--manifest` to `dev:once`; manifest selection belongs to `npm run dev` or `startTestDevServer`.
+1. Identify the runtime manifest that mounts the agent.
+2. Start the runtime first: `npm run dev -- --manifest <path>` (local) or `withTestDevServer({ manifestPath, shippedAgents, knownEventTypes, … })` (tests).
+3. Identify or create a scenario under `scenarios/**/*.scenarios.json` with `manifests[]` including the active manifest `name`.
+4. Run one ingress proof: `npm run dev:once -- --scenario <id>` or `runDevOnce({ scenarioId, env })` with the same env as the test server (`--fixture` is an alias).
+5. `dev:once` defaults to `manifests/application.json`; pass `--manifest <path>` when the stack was started with a non-default manifest (must match worker `SYNAPSE_RUNTIME_MANIFEST`). `withTestDevServer` callers pass the same path via `runDevOnce({ manifestPath })`.
 6. `runDevOnce` does not start workers, webhooks, or infrastructure.
 7. Assert with normal Vitest expectations on `SynapseRunArtifact` (`events`, `agentRuns`, `status`).
 8. Do not call live external APIs by default.
-9. Do not add `defineReactor` subscriptions for new shipped agents.
+9. Shipped agents use `defineAgent` + `shipped-agents.ts` — not `defineReactor` subscriptions in manifest JSON.

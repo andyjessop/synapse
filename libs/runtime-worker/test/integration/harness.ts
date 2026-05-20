@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import type { PoolClient } from 'pg';
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { parseRuntimeConfig } from 'runtime-config';
 import {
   type AgentRunStatus,
@@ -66,7 +66,7 @@ const silentLogger: RuntimeLogger = {
   warn: () => {},
 };
 
-export const exampleEchoPingAgent = defineAgent({
+export const exampleEchoPingAgent = defineRegistryAgent({
   name: 'example-echo',
   reactors: [
     defineReactor({
@@ -289,7 +289,7 @@ export async function bootstrapTestWorker(input: {
   store: RuntimeStore;
   pool: RuntimePool;
   redisUrl: string;
-  agents?: ReturnType<typeof defineAgent>[];
+  agents?: ReturnType<typeof defineRegistryAgent>[];
   registry?: RuntimeRegistry;
   planningIntervalMs?: number;
   queueingIntervalMs?: number;

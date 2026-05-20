@@ -4,8 +4,16 @@ export default defineConfig({
   root: process.cwd(),
   resolve: {
     alias: {
+      'agent-reviewer/definition': new URL(
+        '../../agents/agent-reviewer/src/definition.ts',
+        import.meta.url,
+      ).pathname,
       'agent-reviewer': new URL(
         '../../agents/agent-reviewer/src/index.ts',
+        import.meta.url,
+      ).pathname,
+      'example-agent-echo/definition': new URL(
+        '../../examples/agents/example-agent-echo/src/definition.ts',
         import.meta.url,
       ).pathname,
       'example-agent-notifier': new URL(
@@ -35,6 +43,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
+      exclude: ['src/main.ts'],
       thresholds: {
         statements: 55,
         branches: 45,

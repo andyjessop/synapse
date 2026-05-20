@@ -1,4 +1,4 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { computeNormalizedMigrationSqlHash } from 'runtime-agent-sqlite';
 import { EXAMPLE_AGENT_SQLITE_COUNTER } from 'runtime-events';
 
@@ -16,7 +16,7 @@ const visitsMigration = {
   sql: VISITS_TABLE_SQL,
 } as const;
 
-export const sqliteCounterAgentDefinition = defineAgent({
+export const sqliteCounterAgentDefinition = defineRegistryAgent({
   name: SQLITE_COUNTER_AGENT_NAME,
   sqlite: {
     migrations: [visitsMigration],

@@ -27,7 +27,7 @@ Same pattern as application webhook ingress (`agent-reviewer`), but file-based f
 npx nx run example-agent-notifier:test
 ```
 
-HTTP: when **`example/notifier`** is listed on the example manifest `agents[].fixtures`, run **`npm run dev:example`** then **`npm run dev:once -- --fixture example/notifier`**.
+HTTP: when a scenario **`example/notifier`** exists on the example manifest `scenarios[]`, run **`npm run dev:example`** then **`npm run dev:once -- --scenario example/notifier`**.
 
 Trigger: `example-agent-notifier/ticket` → `triggerTicketOpened()`.
 

@@ -1,18 +1,19 @@
 # Example fixtures
 
-Static **fixture contract** payloads for packages under `examples/agents/`. Application agents use repo-root `fixtures/<agent-name>/` instead.
+Static **payload** and **adapter stub** files for packages under `examples/agents/`. Application agents use repo-root `fixtures/<agent-name>/` instead.
 
 Each HTTP-capable example should have:
 
-- A `*.fixture.json` under `examples/fixtures/<package>/` (validated by `synapseFixtureSchema`)
-- The fixture path listed on the owning agent in the example manifest (`agents[].fixtures`)
-- `webhooks.routes` listing example route ids on the manifest when ingress goes through `apps/webhooks`
+- Payload JSON under `examples/fixtures/<package>/`
+- A scenario under `scenarios/` with `ingress.fixtures[].file` pointing at those payloads
+- The scenario path listed on manifest `scenarios[]`
+- Matching `webhooks[]` / `pollers[]` on the example manifest
 
 Local proof:
 
 ```bash
 npm run dev -- --manifest manifests/examples/echo.json
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario example/echo
 ```
 
-Same fixture paths are used in `withTestDevServer` + `runDevOnce` integration tests.
+Same scenario ids are used in `withTestDevServer` + `runDevOnce` integration tests.

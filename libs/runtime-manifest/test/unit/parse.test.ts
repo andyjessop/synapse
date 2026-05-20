@@ -15,13 +15,7 @@ describe('parseRuntimeManifest', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
       name: 'inline',
-      agents: [
-        {
-          name: 'example-echo',
-          handler: 'examples/agents/example-agent-echo/src/echo-agent.ts',
-          handles: ['example.ping.v1'],
-        },
-      ],
+      agents: [{ name: 'example-echo' }],
     });
     expect(manifest.name).toBe('inline');
   });

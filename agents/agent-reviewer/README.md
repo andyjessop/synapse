@@ -2,43 +2,41 @@
 
 Manifest agent **`agent-reviewer`**: GitLab merge-request webhook ingress → **`pr.received.v1`** → **`review-pr`** handler (Pi review) → **`pr.reviewed.v1`**.
 
+Definition: `src/review-pr-agent.definition.ts` (`defineAgent`, `usesAdapters: ['synapse.adapters.gitlab.v1']`). Registered in `apps/worker/src/shipped-agents.ts`.
+
 ## Local development
 
-Start the stack, then post a run-loop fixture:
+Agent handler breakpoints use VS Code **`dev (worker inspect)`** (worker on port **9230**), not **`dev:once`**. See [Local agent development](../../docs/how-to/local-agent-development.md#debug-agent-handlers-breakpoints).
+
+Start the stack, then run the scenario:
 
 ```bash
 npm run dev
-npm run dev:once -- --fixture review-pr/gitlab-synapse
+npm run dev:once -- --scenario review-pr/gitlab-synapse
 ```
 
-**Default (`npm run dev`):** the handler loads **`fixtures.adapter`** from the active manifest (`manifests/application.json` by default) and uses **live Pi SDK** plus **GitLab adapter mock rules** (schema `libs/runtime-manifest/schemas/adapter/gitlab.fetchChanges.v1.schema.json`). Requires **`OPENAI_API_KEY`** in repo-root **`.env.local`** (or Pi auth under `~/.pi/agent`). Default model: **`openai/gpt-5.4-mini`** (`PI_REVIEW_MODEL`). Pi uses tool **`fetch_merge_request_diff`**; rules match on `projectId` / `mergeRequestIid`.
+**Default (`npm run dev`):** live **Pi SDK**; GitLab via **`ctx.adapters.invoke`** (live `GITLAB_TOKEN` or scenario FIFO mocks during `dev:once`). Requires **`OPENAI_API_KEY`** in repo-root **`.env.local`** (or Pi auth under `~/.pi/agent`) for live review. Default model: **`openai/gpt-5.4-mini`** (`PI_REVIEW_MODEL`).
 
-**Hermetic Pi:** set **`AGENT_REVIEWER_HERMETIC=1`** before **`npm run dev`** to use the Pi review adapter fixture schema (no OpenAI).
+**Hermetic Pi:** set **`AGENT_REVIEWER_HERMETIC=1`** before **`npm run dev`** for Pi fixture mode (no OpenAI). GitLab stubs for `dev:once` come from **`adapters[]`** on `scenarios/agent-reviewer/review-pr-gitlab-synapse.scenarios.json`.
 
-## Manifest row (application)
+## Manifest mount
 
 ```json
-"fixtures": {
-  "webhook": [
-    "fixtures/agent-reviewer/review-pr-gitlab-synapse.fixture.json"
-  ],
-  "adapter": [
-    "fixtures/agent-reviewer/adapters/gitlab-fetch-changes-synapse.json",
-    "fixtures/agent-reviewer/adapters/pi-review-synapse.json"
-  ]
+{
+  "agents": [{ "name": "agent-reviewer" }],
+  "webhooks": [{ "source": "synapse.webhooks.prs.v1" }],
+  "adapters": [{ "source": "synapse.adapters.gitlab.v1" }]
 }
 ```
 
-Dev wiring: `src/configure-review-pr-dev-clients.ts` (imported from `review-pr-agent.ts`).
+Scenario file `scenarios/agent-reviewer/review-pr-gitlab-synapse.scenarios.json` declares `"manifests": ["application-default", "debug-reviewer-only"]`.
 
-## Fixture files (`fixtures/agent-reviewer/`)
+## Static files (`fixtures/agent-reviewer/`)
 
 | File | Role |
 | --- | --- |
-| `review-pr-gitlab-synapse.fixture.json` | Run-loop contract (`run-loop.v1.schema.json`) |
-| `gitlab-merge-request.json` | Webhook POST body |
-| `adapters/gitlab-fetch-changes-synapse.json` | GitLab `fetchChanges` mock rule |
-| `adapters/pi-review-synapse.json` | Pi `review` mock rule (hermetic) |
+| `gitlab-merge-request.json` | Webhook payload (`ingress.fixtures[].file`) |
+| `adapters/gitlab-fetch-changes-synapse-result.json` | GitLab `fetchChanges` return stub (scenario `adapters[]`) |
 
 ## Tests
 
@@ -46,4 +44,4 @@ Dev wiring: `src/configure-review-pr-dev-clients.ts` (imported from `review-pr-a
 npx nx run agent-reviewer:test
 ```
 
-Unit tests cover ingress, the review handler (with an injected Pi client), manifest dev wiring, and schemas. End-to-end proof of the full run loop uses **`npm run dev`** + **`npm run dev:once -- --fixture review-pr/gitlab-synapse`** (live Pi by default, or **`AGENT_REVIEWER_HERMETIC=1`** without an LLM).
+Unit tests cover ingress, the review handler (with injected Pi client), and schemas. End-to-end proof: **`npm run dev`** + **`npm run dev:once -- --scenario review-pr/gitlab-synapse`** (live Pi by default, or **`AGENT_REVIEWER_HERMETIC=1`** without an LLM).

@@ -1,4 +1,4 @@
-import type { SynapseFixture } from 'synapse-fixtures';
+import type { SynapseWebhookRunLoopFixture } from 'synapse-fixtures';
 import { z } from 'zod';
 
 const prWebhookAcceptedResponseSchema = z
@@ -39,7 +39,7 @@ export function assertLoopbackWebhooksHost(host: string): void {
 
 export async function postWebhookFixture(input: {
   baseUrl: string;
-  fixture: SynapseFixture;
+  fixture: SynapseWebhookRunLoopFixture;
   body: Buffer;
 }): Promise<
   | { ok: true; status: number; json: unknown }
@@ -54,7 +54,49 @@ export async function postWebhookFixture(input: {
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: input.body,
+      body: new Uint8Array(input.body),
+    });
+    const text = await response.text();
+    let json: unknown;
+    try {
+      json = JSON.parse(text) as unknown;
+    } catch {
+      json = { raw: text };
+    }
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: `HTTP ${response.status}: ${text.slice(0, 500)}`,
+      };
+    }
+    return { ok: true, status: response.status, json };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: message };
+  }
+}
+
+export async function postWebhookBody(input: {
+  baseUrl: string;
+  method: string;
+  path: string;
+  body: Buffer;
+  headers?: Record<string, string>;
+}): Promise<
+  | { ok: true; status: number; json: unknown }
+  | { ok: false; status?: number; error: string }
+> {
+  const url = `${input.baseUrl.replace(/\/$/, '')}${input.path}`;
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...(input.headers ?? {}),
+  };
+  try {
+    const response = await fetch(url, {
+      method: input.method,
+      headers,
+      body: new Uint8Array(input.body),
     });
     const text = await response.text();
     let json: unknown;
@@ -78,7 +120,9 @@ export async function postWebhookFixture(input: {
 }
 
 export function parseAcceptedWebhookJson(
-  fixture: SynapseFixture,
+  fixture:
+    | SynapseWebhookRunLoopFixture
+    | { ingress: { kind: 'webhook'; method: string; path: string } },
   json: unknown,
 ): { ok: true; event_id: string } | { ok: false; error: string } {
   if (fixture.ingress.path === '/v1/prs') {

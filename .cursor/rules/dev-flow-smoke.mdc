@@ -12,7 +12,7 @@ The default local path is **`npm run dev`** → **`npm run dev:once -- --fixture
 Run this **after** [post-task-verify-scripts](post-task-verify-scripts.mdc) (lint, typecheck, test, format) when the change could affect local dev, including:
 
 - `scripts/dev.ts`, `scripts/dev-once/**`, `scripts/dev*.ts`
-- `apps/webhooks/**`
+- `apps/ingress/**`
 - `libs/dev-once/**`, `libs/dev-cli-shared/**`, `libs/synapse-fixtures/**`, `libs/dev-tooling/**`
 - `manifests/**`, `fixtures/**`, `agents/**`, `examples/agents/**`
 - Root `package.json` dev scripts or env docs for dev adapters
@@ -23,8 +23,8 @@ Skip only when the turn is **purely exploratory**, **docs-only with no executabl
 
 - Shell at the **repository root** (`source`).
 - **Docker** available (`npm run dev` runs Compose itself; do not assume a separate `dev:infra` step is required first).
-- Do not start a second stack if **`npm run dev` is already running** for this repo (webhooks on `127.0.0.1:3102`) **and** **`.synapse/dev-session.json`** shows the **example echo** manifest (`manifests/examples/echo.json` or manifest name **`example-echo`**). Reuse that session and skip background start/teardown.
-- If dev is up with another manifest (e.g. application), **stop it** and start smoke with the example manifest below — do not run **`example/echo`** against an application session.
+- Do not start a second stack if **`npm run dev` is already running** for this repo (webhooks on `127.0.0.1:3102`) **with** **`manifests/examples/echo.json`** (worker env `SYNAPSE_RUNTIME_MANIFEST` pointing at echo). Reuse that stack and skip background start/teardown.
+- If dev is up with the application manifest, **stop it** and start smoke with the example manifest below — do not run **`example/echo`** without **`--manifest manifests/examples/echo.json`** on `dev:once`.
 
 ## Procedure (example echo — canonical smoke)
 
@@ -47,9 +47,9 @@ Skip only when the turn is **purely exploratory**, **docs-only with no executabl
 
 4. Run the canonical smoke fixture (must exit **0**):
 
-   ```bash
-   npm run dev:once -- --fixture example/echo
-   ```
+ ```bash
+ npm run dev:once -- --manifest manifests/examples/echo.json --fixture example/echo
+ ```
 
 5. **Inspect the run snapshot** under **`tmp/dev/runs/`** (repo root). `dev:once` prints **`artifact: tmp/dev/runs/<YYYYMMDDHHmmss>_<input_event_id>.json`** on success—open that file (or the newest `*.json` there if the line was missed). Each accepted webhook ingress gets one **`DevOnceRunRecord`** (`version: 1`). Do not treat smoke as passed on CLI exit code alone; confirm the graph looks right.
 
@@ -69,7 +69,7 @@ Read the snapshot JSON (pretty-print or `jq`). Expect:
 
 **Example echo (`example/echo`):** input **`example.ping.v1`**; downstream **`example.pong.v1`**; **`example-echo`** agent run **`succeeded`**.
 
-If the graph is truncated in the CLI but the snapshot looks incomplete, compare with `apps/webhooks/README.md` and `libs/dev-cli-shared/README.md` (full graph is in the file; CLI may cap at `DEV_RUN_GRAPH_EVENT_LIMIT`).
+If the graph is truncated in the CLI but the snapshot looks incomplete, compare with `apps/ingress/README.md` and `libs/dev-cli-shared/README.md` (full graph is in the file; CLI may cap at `DEV_RUN_GRAPH_EVENT_LIMIT`).
 
 ## Application agents (not smoke)
 
@@ -77,7 +77,7 @@ Manual verification of **`agent-reviewer`** / **`review-pr/gitlab-synapse`** is 
 
 ## Rules agents must follow
 
-- **Never** pass `--manifest` to `dev:once`; manifest selection is only on `npm run dev` (see [synapse-run-loop](synapse-run-loop.mdc)).
+- Pass **`--manifest manifests/examples/echo.json`** on `dev:once` when the stack uses the echo manifest (see [synapse-run-loop](synapse-run-loop.mdc)).
 - **Never** use **`npm run dev`** without **`--manifest manifests/examples/echo.json`** (or equivalent) for mandatory smoke.
 - Use a **real fixture id** from `npm run dev:once -- --list` for the active session—not a made-up id.
 - Wait for **`dev:once` to finish** (default wait). Do not use `--no-wait` for smoke unless diagnosing a hang.
@@ -87,7 +87,7 @@ Manual verification of **`agent-reviewer`** / **`review-pr/gitlab-synapse`** is 
 
 - `npm run dev -- --manifest manifests/examples/echo.json` reaches the running banner without critical child exits.
 - `npm run dev:once -- --list` shows **`example/echo`** for the active session.
-- `npm run dev:once -- --fixture example/echo` exits **0** with **`status: succeeded`** (or equivalent success in `--json` output).
+- `npm run dev:once -- --manifest manifests/examples/echo.json --fixture example/echo` exits **0** with **`status: succeeded`** (or equivalent success in `--json` output).
 - **`tmp/dev/runs/<timestamp>_<input_event_id>.json`** exists for that ingress and matches the expectations above (sensible event chain, succeeded **`example-echo`** run, no `lastError`).
 
 If smoke fails, the task is **not done**—fix and re-run Nx verification and dev smoke.

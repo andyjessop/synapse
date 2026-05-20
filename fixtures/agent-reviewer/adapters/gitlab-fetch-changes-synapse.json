@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "schema": "libs/runtime-manifest/schemas/adapter/gitlab.fetchChanges.v1.schema.json",
+  "schema": "adapters/adapter-gitlab/schemas/gitlab.fetchChanges.v1.schema.json",
   "adapter": "gitlab",
   "method": "fetchChanges",
   "match": {

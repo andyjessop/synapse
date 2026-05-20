@@ -99,6 +99,33 @@ export function formatPiToolActivitySummary(
         ? `ls ${ellipsizePath(toRepoRelativePath(path, repoRoot))}`
         : 'ls .';
     }
+    case 'bash': {
+      const command = pickString(a.command);
+      return command
+        ? `bash ${truncateVisible(command, DEFAULT_MAX_PATTERN)}`
+        : 'bash';
+    }
+    case 'write': {
+      const path = pickString(a.path);
+      const content = pickString(a.content);
+      const pathPart = path
+        ? ellipsizePath(toRepoRelativePath(path, repoRoot))
+        : '?';
+      const bytes =
+        content !== undefined ? ` (${content.length} chars)` : '';
+      return `write ${pathPart}${bytes}`;
+    }
+    case 'edit': {
+      const path = pickString(a.path);
+      const edits = a.edits;
+      const editCount = Array.isArray(edits) ? edits.length : undefined;
+      const pathPart = path
+        ? ellipsizePath(toRepoRelativePath(path, repoRoot))
+        : '?';
+      return editCount !== undefined
+        ? `edit ${pathPart} (${editCount} patch${editCount === 1 ? '' : 'es'})`
+        : `edit ${pathPart}`;
+    }
     case 'fetch_merge_request_diff': {
       const projectId = a.project_id;
       const iid = a.merge_request_iid;

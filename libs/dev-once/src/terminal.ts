@@ -71,6 +71,65 @@ async function eventTypesOnRoot(
   return new Set(result.rows.map((row) => String(row.type)));
 }
 
+export async function waitForTerminalEventTypes(input: {
+  pool: RuntimePool;
+  rootId: string;
+  terminalEventTypes?: readonly string[];
+  pollMs: number;
+  timeoutMs?: number;
+  onPollTick?: () => void | Promise<void>;
+}): Promise<TerminalWaitResult> {
+  if (
+    input.terminalEventTypes === undefined ||
+    input.terminalEventTypes.length === 0
+  ) {
+    return { kind: 'succeeded' };
+  }
+
+  const deadline =
+    input.timeoutMs === undefined ? undefined : Date.now() + input.timeoutMs;
+
+  for (;;) {
+    if (input.onPollTick !== undefined) {
+      await input.onPollTick();
+    }
+
+    const pending = await hasPendingRunsOnRoot(input.pool, input.rootId);
+    const failed = await hasFailedRunOnRoot(input.pool, input.rootId);
+    const types = await eventTypesOnRoot(input.pool, input.rootId);
+    const runCount = await countAgentRunsOnRoot(input.pool, input.rootId);
+
+    if (runCount === 0 && !failed && !pending) {
+      await new Promise((resolve) => setTimeout(resolve, input.pollMs));
+      continue;
+    }
+
+    if (!pending) {
+      for (const type of input.terminalEventTypes) {
+        if (!types.has(type)) {
+          return {
+            kind: 'failed',
+            reason: `missing terminal event type ${type}`,
+          };
+        }
+      }
+      return failed
+        ? { kind: 'failed', reason: 'agent run failed' }
+        : { kind: 'succeeded' };
+    }
+
+    if (failed) {
+      return { kind: 'failed', reason: 'agent run failed' };
+    }
+
+    if (deadline !== undefined && Date.now() >= deadline) {
+      return { kind: 'timed_out' };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, input.pollMs));
+  }
+}
+
 export function evaluateExpectFromTypes(
   fixture: SynapseFixture,
   eventTypes: Set<string>,
@@ -125,6 +184,21 @@ export async function waitForFixtureTerminal(input: {
   timeoutMs?: number;
   onPollTick?: () => void | Promise<void>;
 }): Promise<TerminalWaitResult> {
+  const terminalTypes = input.fixture.expect?.terminalEventTypes;
+  if (terminalTypes !== undefined && terminalTypes.length > 0) {
+    const byTerminal = await waitForTerminalEventTypes({
+      pool: input.pool,
+      rootId: input.rootId,
+      terminalEventTypes: terminalTypes,
+      pollMs: input.pollMs,
+      timeoutMs: input.timeoutMs,
+      onPollTick: input.onPollTick,
+    });
+    if (byTerminal.kind !== 'succeeded') {
+      return byTerminal;
+    }
+  }
+
   const deadline =
     input.timeoutMs === undefined ? undefined : Date.now() + input.timeoutMs;
 

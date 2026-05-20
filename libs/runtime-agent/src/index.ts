@@ -1,4 +1,11 @@
 export {
+  ADAPTER_SOURCE_ID_PATTERN,
+  ADAPTER_SOURCE_ID_PATTERN as MANIFEST_AGENT_ADAPTER_SOURCE_ID_PATTERN,
+  AGENT_HANDLE_PATTERN,
+  type AgentDefinition,
+  defineAgent,
+} from './agent-definition.js';
+export {
   type AgentContext,
   type AgentHandler,
   defineAgentHandler,
@@ -61,14 +68,15 @@ export type ReactorContext = {
   requireDb(): AgentSqliteDb;
 };
 
-/** @deprecated Use {@link AgentHandler} default-export functions from manifest handler modules. */
+/** @deprecated Use {@link AgentHandler} default-export functions from agent definition modules. */
 export type ReactorDefinition<TEvent extends SynapseEvent = SynapseEvent> = {
   name: string;
   subscribesTo: readonly string[];
   handler: (event: TEvent, ctx: ReactorContext) => Promise<void>;
 };
 
-export type AgentDefinition = {
+/** Registry-based agent with reactors (legacy worker bootstrap). */
+export type RegistryAgentDefinition = {
   name: string;
   sqlite?: AgentSqliteDefinition;
   reactors: readonly ReactorDefinition[];
@@ -81,6 +89,9 @@ export function defineReactor<TEvent extends SynapseEvent>(
   return reactor;
 }
 
-export function defineAgent(agent: AgentDefinition): AgentDefinition {
+/** @deprecated Use {@link defineAgent} for shipped agent definitions. */
+export function defineRegistryAgent(
+  agent: RegistryAgentDefinition,
+): RegistryAgentDefinition {
   return agent;
 }

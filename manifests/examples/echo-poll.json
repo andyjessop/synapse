@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
+  "name": "example-echo-poll",
+  "description": "Example echo agent with in-memory poll ingress curriculum",
+  "agents": [{ "name": "example-echo" }],
+  "webhooks": [{ "source": "synapse.webhooks.example-echo-ping.v1" }],
+  "pollers": [
+    {
+      "source": "synapse.poll.example-in-memory-heartbeat.v1",
+      "intervalMs": 60000,
+      "params": { "maxCandidates": 1 }
+    }
+  ]
+}

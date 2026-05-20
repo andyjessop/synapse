@@ -31,9 +31,13 @@ vi.mock('runtime-manifest', async (importOriginal) => {
   };
 });
 
-vi.mock('runtime-worker', () => ({
-  wrapManifestRuntimeRegistry: vi.fn((registry) => registry),
-}));
+vi.mock('runtime-worker', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('runtime-worker')>();
+  return {
+    ...actual,
+    wrapManifestRuntimeRegistry: vi.fn((registry) => registry),
+  };
+});
 
 const { loadWorkerManifestRegistry, manifestPlanningLogFields } = await import(
   '../../src/manifest-registry.js'
@@ -54,6 +58,8 @@ describe('worker manifest registry', () => {
         repoRoot,
         manifestPath: env.SYNAPSE_RUNTIME_MANIFEST,
         env,
+        shippedAgents: expect.any(Map),
+        knownEventTypes: expect.any(Set),
       }),
     );
     expect(loaded.manifest.name).toBe('application-default');

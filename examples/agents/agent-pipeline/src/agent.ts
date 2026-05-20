@@ -1,9 +1,9 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { EXAMPLE_AGENT_PIPELINE } from 'runtime-events';
 
 export const PIPELINE_AGENT_NAME = EXAMPLE_AGENT_PIPELINE;
 
-export const pipelineAgentDefinition = defineAgent({
+export const pipelineAgentDefinition = defineRegistryAgent({
   name: PIPELINE_AGENT_NAME,
   reactors: [
     defineReactor({

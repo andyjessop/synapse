@@ -29,7 +29,10 @@ describe('createSynapsePiDevExtensionFactory', () => {
       type: 'tool_execution_end',
       toolCallId: 'tc-1',
       toolName: 'grep',
-      result: {},
+      result: {
+        content: [{ type: 'text', text: 'src/foo.ts:1:match\n' }],
+        details: {},
+      },
       isError: false,
     });
 
@@ -51,6 +54,8 @@ describe('createSynapsePiDevExtensionFactory', () => {
       expect.objectContaining({
         tool_call_id: 'tc-1',
         is_error: false,
+        args: { summary: expect.stringContaining('grep') },
+        result_summary: expect.stringContaining('grep'),
         timeline_order: 1,
       }),
       'pi:tool:tc-1:completed',

@@ -1,6 +1,7 @@
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent';
 
 import type { PiHarnessSynapseEmit } from '../pi-harness-synapse-events.js';
+import { formatPiToolResultSummary } from '../pi-harness-tool-result.js';
 import { sanitizePiToolArgsForEvent } from './sanitize-tool-args.js';
 
 export type CreateSynapsePiDevExtensionInput = {
@@ -24,8 +25,10 @@ export function createSynapsePiDevExtensionFactory(
 ): ExtensionFactory {
   return (pi) => {
     let timelineOrder = 0;
+    const argsByToolCallId = new Map<string, unknown>();
 
     pi.on('tool_execution_start', async (event) => {
+      argsByToolCallId.set(event.toolCallId, event.args);
       const order = timelineOrder;
       timelineOrder += 1;
       await input.emit(
@@ -49,12 +52,27 @@ export function createSynapsePiDevExtensionFactory(
     pi.on('tool_execution_end', async (event) => {
       const order = timelineOrder;
       timelineOrder += 1;
+      const rawArgs = argsByToolCallId.get(event.toolCallId);
+      argsByToolCallId.delete(event.toolCallId);
+      const resultSummary = formatPiToolResultSummary(
+        event.toolName,
+        event.result,
+        event.isError,
+      );
       await input.emit(
         'pi.tool-call.completed.v1',
         {
           tool_call_id: event.toolCallId,
           tool_name: event.toolName,
           is_error: event.isError,
+          args: sanitizePiToolArgsForEvent(
+            event.toolName,
+            rawArgs,
+            input.repoRoot,
+          ),
+          ...(resultSummary !== undefined
+            ? { result_summary: resultSummary }
+            : {}),
           input_event_id: input.inputEventId,
           review_subject: input.reviewSubject,
           timeline_order: order,

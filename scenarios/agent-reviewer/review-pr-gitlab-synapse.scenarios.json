@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/scenario/run-loop.v1.schema.json",
+  "scenarios": [
+    {
+      "id": "review-pr/gitlab-synapse",
+      "title": "Review PR (GitLab synapse)",
+      "description": "GitLab merge request webhook for agent-reviewer curriculum",
+      "manifests": ["application-default", "debug-reviewer-only"],
+      "ingress": {
+        "source": "synapse.webhooks.prs.v1",
+        "fixtures": [
+          { "file": "fixtures/agent-reviewer/gitlab-merge-request.json" }
+        ]
+      },
+      "adapters": [
+        {
+          "source": "synapse.adapters.gitlab.v1",
+          "method": "fetchChanges",
+          "params": {
+            "projectId": 202,
+            "mergeRequestIid": 42
+          },
+          "returns": {
+            "file": "fixtures/agent-reviewer/adapters/gitlab-fetch-changes-synapse-result.json"
+          }
+        }
+      ],
+      "terminalEventTypes": ["pr.reviewed.v1"]
+    }
+  ]
+}

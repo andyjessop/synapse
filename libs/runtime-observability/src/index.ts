@@ -63,7 +63,11 @@ export type RuntimeHop =
   | 'reactor.emit'
   | 'agent_sqlite.open'
   | 'agent.load_fixture'
-  | 'adapter.request';
+  | 'adapter.request'
+  | 'webhook.request'
+  | 'ingress.request'
+  | 'poll.tick'
+  | 'poll.lock';
 
 export type RuntimeResult =
   | 'success'
@@ -100,6 +104,9 @@ export type RuntimeCommonAttributes = {
   source?: string;
   topic?: string;
   operation?: string;
+  webhookRouteId?: string;
+  ingressRouteId?: string;
+  pollSourceId?: string;
   result?: RuntimeResult | string;
   replay?: boolean;
 };
@@ -176,6 +183,10 @@ const spanNames = {
   'agent_sqlite.open': 'agent sqlite open',
   'agent.load_fixture': 'agent load fixture',
   'adapter.request': 'adapter request',
+  'webhook.request': 'webhook request',
+  'ingress.request': 'ingress request',
+  'poll.tick': 'poll tick',
+  'poll.lock': 'poll lock',
 } as const satisfies Record<RuntimeHop, string>;
 
 const highCardinalityMetricKeys = new Set([
@@ -389,6 +400,25 @@ export function runtimeSpanName(hop: RuntimeHop): string {
   return spanNames[hop];
 }
 
+function ingressHttpAttributes(
+  input: RuntimeSpanInput,
+): Record<string, AttributeValue | undefined> {
+  if (
+    (input.hop !== 'webhook.request' && input.hop !== 'ingress.request') ||
+    input.operation === undefined
+  ) {
+    return {};
+  }
+  const space = input.operation.indexOf(' ');
+  if (space <= 0) {
+    return {};
+  }
+  return {
+    'http.request.method': input.operation.slice(0, space),
+    'http.route': input.operation.slice(space + 1),
+  };
+}
+
 export function buildRuntimeSpanAttributes(
   input: RuntimeSpanInput,
 ): SpanAttributes {
@@ -408,8 +438,12 @@ export function buildRuntimeSpanAttributes(
     'synapse.source': input.source,
     'messaging.destination.name': input.topic ?? input.queue,
     'synapse.operation': input.operation,
+    'synapse.webhook.route_id': input.webhookRouteId,
+    'synapse.ingress.route_id': input.ingressRouteId,
+    'synapse.poll.source_id': input.pollSourceId,
     'synapse.result': input.result,
     'synapse.replay': input.replay,
+    ...ingressHttpAttributes(input),
   });
 }
 
@@ -481,6 +515,9 @@ export class RuntimeMetrics {
   private readonly bullmqJobs;
   private readonly adapterRequests;
   private readonly agentRuns;
+  private readonly pollTicks;
+  private readonly pollEmits;
+  private readonly pollSkips;
 
   constructor(meter: Meter) {
     this.eventsRecorded = meter.createCounter('synapse.events.recorded', {
@@ -497,6 +534,15 @@ export class RuntimeMetrics {
     });
     this.agentRuns = meter.createCounter('synapse.agent.runs', {
       description: 'Agent run outcomes.',
+    });
+    this.pollTicks = meter.createCounter('synapse.poll.ticks', {
+      description: 'Poll source tick outcomes.',
+    });
+    this.pollEmits = meter.createCounter('synapse.poll.emits', {
+      description: 'Events emitted from poll ingress.',
+    });
+    this.pollSkips = meter.createCounter('synapse.poll.skips', {
+      description: 'Poll ingress skip reasons.',
     });
   }
 
@@ -518,6 +564,39 @@ export class RuntimeMetrics {
 
   recordAgentRun(labels: RuntimeMetricLabels, count = 1): void {
     this.agentRuns.add(count, buildAgentRunMetricLabels(labels));
+  }
+
+  recordPollTick(
+    labels: { source_id: string; outcome: string },
+    count = 1,
+  ): void {
+    this.pollTicks.add(
+      count,
+      lowCardinalityLabels({
+        source_id: labels.source_id,
+        outcome: labels.outcome,
+      }),
+    );
+  }
+
+  recordPollEmit(labels: { source_id: string }, count = 1): void {
+    this.pollEmits.add(
+      count,
+      lowCardinalityLabels({ source_id: labels.source_id }),
+    );
+  }
+
+  recordPollSkip(
+    labels: { source_id: string; reason: string },
+    count = 1,
+  ): void {
+    this.pollSkips.add(
+      count,
+      lowCardinalityLabels({
+        source_id: labels.source_id,
+        reason: labels.reason,
+      }),
+    );
   }
 }
 
@@ -637,3 +716,8 @@ function removeUndefined<TValue extends AttributeValue | string | undefined>(
     Object.entries(input).filter(([, value]) => value !== undefined),
   ) as Record<string, Exclude<TValue, undefined>>;
 }
+
+export {
+  buildJaegerTraceUrl,
+  traceIdFromTraceparent,
+} from './jaeger-trace-url.js';

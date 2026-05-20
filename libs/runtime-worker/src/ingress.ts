@@ -1,6 +1,7 @@
 import type { Tracer } from '@opentelemetry/api';
+import { context } from '@opentelemetry/api';
 import type { SynapseEvent } from 'runtime-agent';
-import { runWithRuntimeSpan } from 'runtime-observability';
+import { eventTraceCarrier, runWithRuntimeSpan } from 'runtime-observability';
 import { appendEvent, type RuntimePool } from 'runtime-store';
 
 export type EmitEventOptions = {
@@ -65,6 +66,47 @@ export function defineIngress<
   return ingress;
 }
 
+export type PollTickReasonCounts = Record<string, number>;
+
+export type PollIngressInput<TParams, TCandidate = unknown> = {
+  params: TParams;
+  polledAt: string;
+  /** When set (scenario or inject), agent uses these candidates instead of live discovery. */
+  candidates?: TCandidate[];
+};
+
+/**
+ * Poll ingress tick result. `rootEventIds` lists one durable event id per successful
+ * root semantic emit from this tick (new or deduped existing events returned by `ctx.emit`).
+ */
+export type PollIngressResult = {
+  emitted: number;
+  skipped: number;
+  failed: number;
+  rootEventIds: string[];
+  skipReasons?: PollTickReasonCounts;
+  failureReasons?: PollTickReasonCounts;
+};
+
+export type PollIngress<
+  TAdapters extends Record<string, unknown> = Record<string, never>,
+  TAgents extends Record<string, unknown> = Record<string, never>,
+  TInput = undefined,
+> = (
+  ctx: IngressContext<TAdapters, TAgents>,
+  input: TInput,
+) => PollIngressResult | Promise<PollIngressResult>;
+
+export function definePollIngress<
+  TAdapters extends Record<string, unknown> = Record<string, never>,
+  TAgents extends Record<string, unknown> = Record<string, never>,
+  TInput = undefined,
+>(
+  ingress: PollIngress<TAdapters, TAgents, TInput>,
+): PollIngress<TAdapters, TAgents, TInput> {
+  return ingress;
+}
+
 export function createIngressContext<
   TAdapters extends Record<string, unknown> = Record<string, never>,
   TAgents extends Record<string, unknown> = Record<string, never>,
@@ -85,7 +127,7 @@ export function createIngressContext<
     adapters: options.adapters ?? ({} as TAdapters),
     agents: options.agents ?? ({} as TAgents),
     emit: (type, data, emitOptions) => {
-      const append = () =>
+      const appendFromContext = (activeContext = context.active()) =>
         appendEvent(options.store, {
           type,
           data,
@@ -94,16 +136,18 @@ export function createIngressContext<
           subject: emitOptions.subject,
           rootId: emitOptions.rootId,
           parentId: emitOptions.parentId,
+          ...eventTraceCarrier(activeContext),
         });
       if (options.tracer === undefined) {
-        return append();
+        return appendFromContext();
       }
       return runWithRuntimeSpan({
         hop: 'ingress.emit',
         tracer: options.tracer,
         eventType: type,
         source: emitOptions.source ?? options.source,
-        run: append,
+        agent: options.agent,
+        run: (_span, spanContext) => appendFromContext(spanContext),
       });
     },
   };

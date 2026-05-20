@@ -1,3 +1,4 @@
+import type { AdapterPort } from 'runtime-adapters';
 import type {
   AgentContext,
   AgentSqliteDb,
@@ -11,6 +12,7 @@ export function createAgentContext(input: {
   event: SynapseEvent;
   store: RuntimeStore;
   db?: AgentSqliteDb;
+  adapters: AdapterPort;
 }): AgentContext {
   const db = input.db;
   return {
@@ -20,6 +22,7 @@ export function createAgentContext(input: {
       id: input.run.id,
       attempt: input.run.attemptCount,
     },
+    adapters: input.adapters,
     emit: async (type, data, options) => {
       if (
         options === undefined ||
@@ -57,6 +60,7 @@ export function createReactorContext(input: {
   event: SynapseEvent;
   store: RuntimeStore;
   db?: AgentSqliteDb;
+  adapters: AdapterPort;
 }): ReactorContext {
   const ctx = createAgentContext(input);
   return {

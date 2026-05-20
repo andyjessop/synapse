@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
+  "name": "debug-worker-only",
+  "agents": [{ "name": "example-echo" }]
+}

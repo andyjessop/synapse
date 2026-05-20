@@ -2,12 +2,16 @@ import { z } from 'zod';
 
 import type { RuntimeManifest } from './manifest-schema.js';
 
-/** Authoritative catalog of webhook ingress routes (ids, method, path). Registration lives in `apps/webhooks`. */
+/** Authoritative catalog of webhook ingress routes (ids, method, path). Registration lives in `apps/ingress`. */
 export const WEBHOOK_ROUTE_CATALOG = {
   'synapse.webhooks.prs.v1': {
     method: 'POST',
     path: '/v1/prs',
     description: 'GitLab merge request webhook → pr.received.v1',
+    /** Headers `dev:once` sends so ingress matches production GitLab webhooks. */
+    defaultHeaders: {
+      'X-Gitlab-Event': 'Merge Request Hook',
+    },
   },
   'synapse.webhooks.example-echo-ping.v1': {
     method: 'POST',
@@ -39,10 +43,19 @@ export const EXAMPLES_WEBHOOK_ROUTE_IDS: WebhookRouteId[] = [
   'synapse.webhooks.example-notifier-ticket.v1',
 ];
 
+/** Webhook route ids declared in the manifest (`webhooks[].source`), or catalog default when omitted. */
 export function resolveManifestWebhookRouteIds(
   manifest: RuntimeManifest,
 ): WebhookRouteId[] {
-  return manifest.webhooks?.routes ?? DEFAULT_WEBHOOK_ROUTE_IDS;
+  const mounted = declaredManifestWebhookRouteIds(manifest);
+  return mounted.length > 0 ? mounted : DEFAULT_WEBHOOK_ROUTE_IDS;
+}
+
+/** Declared routes only — empty when `webhooks` is omitted (worker-only manifests, ingress mount lists). */
+export function declaredManifestWebhookRouteIds(
+  manifest: RuntimeManifest,
+): WebhookRouteId[] {
+  return manifest.webhooks?.map((entry) => entry.source) ?? [];
 }
 
 export function webhookIngressKey(method: string, path: string): string {

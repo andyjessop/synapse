@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import {
   closeAllAgentSqliteHandles,
   computeNormalizedMigrationSqlHash,
@@ -31,7 +31,7 @@ describe.skipIf(!integrationAvailable)(
         try {
           const sql = 'create table t(x integer not null);\n';
           const hash = computeNormalizedMigrationSqlHash(sql);
-          const sqliteAgent = defineAgent({
+          const sqliteAgent = defineRegistryAgent({
             name: 'sqlite-agent',
             sqlite: {
               migrations: [{ id: '001-init', hash, sql }],
@@ -95,7 +95,7 @@ describe.skipIf(!integrationAvailable)(
         const visitsSql =
           'create table visits(ping text primary key, n integer not null);\n';
         const visitsHash = computeNormalizedMigrationSqlHash(visitsSql);
-        const sqliteRestartAgent = defineAgent({
+        const sqliteRestartAgent = defineRegistryAgent({
           name: 'sqlite-restart-agent',
           sqlite: {
             migrations: [
@@ -210,7 +210,7 @@ describe.skipIf(!integrationAvailable)(
         try {
           const sql = 'create table broken(;\n';
           const hash = computeNormalizedMigrationSqlHash(sql);
-          const badAgent = defineAgent({
+          const badAgent = defineRegistryAgent({
             name: 'sqlite-bad',
             sqlite: {
               migrations: [{ id: '001-bad', hash, sql }],

@@ -1,4 +1,4 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   executeRun,
@@ -46,7 +46,7 @@ describe('executeRun lock renewal', () => {
       markRunFailed: vi.fn(),
     };
     const registry = createRuntimeRegistry([
-      defineAgent({
+      defineRegistryAgent({
         name: 'agent',
         reactors: [
           defineReactor({

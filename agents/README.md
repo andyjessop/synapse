@@ -2,7 +2,7 @@
 
 Capability agents shipped with the product worker. **Not** the example curriculum under `examples/agents/`.
 
-| Agent | Package | Manifest | Webhook fixture | Purpose |
+| Agent | Package | Manifest | Scenario id | Purpose |
 | --- | --- | --- | --- | --- |
 | Reviewer | `agent-reviewer` | `manifests/application.json` | `review-pr/gitlab-synapse` | GitLab MR review via Pi |
 
@@ -11,10 +11,12 @@ Capability agents shipped with the product worker. **Not** the example curriculu
 ```bash
 npm run dev:infra
 npm run dev
-npm run dev:once -- --fixture review-pr/gitlab-synapse
+npm run dev:once -- --scenario review-pr/gitlab-synapse
 ```
 
 Default **`npm run dev`** loads `manifests/application.json` and prints `synapse manifest:` at startup.
+
+Set **`AGENT_REVIEWER_HERMETIC=1`** before **`npm run dev`** for Pi fixture mode without OpenAI.
 
 ## Tests
 

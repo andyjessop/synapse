@@ -4,7 +4,11 @@ export default defineConfig({
   resolve: {
     alias: {
       'adapter-gitlab': new URL(
-        '../../libs/adapter-gitlab/src/index.ts',
+        '../../adapters/adapter-gitlab/src/index.ts',
+        import.meta.url,
+      ).pathname,
+      'runtime-adapters': new URL(
+        '../../libs/runtime-adapters/src/index.ts',
         import.meta.url,
       ).pathname,
       'pi-harness': new URL(

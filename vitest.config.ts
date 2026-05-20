@@ -21,6 +21,7 @@ export default defineConfig({
   test: {
     include: [
       'test/**/*.test.ts',
+      'test/architecture/**/*.test.ts',
       'scripts/**/*.test.ts',
       'libs/dev-cli-shared/**/*.test.ts',
       'libs/synapse-fixtures/**/*.test.ts',

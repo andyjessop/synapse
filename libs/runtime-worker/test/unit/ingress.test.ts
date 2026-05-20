@@ -14,6 +14,7 @@ vi.mock('runtime-store', () => ({
 
 vi.mock('runtime-observability', () => ({
   runWithRuntimeSpan: vi.fn(async (input) => input.run()),
+  eventTraceCarrier: vi.fn(() => ({})),
 }));
 
 describe('defineIngress', () => {

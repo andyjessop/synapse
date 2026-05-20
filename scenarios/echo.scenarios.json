@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/scenario/run-loop.v1.schema.json",
+  "scenarios": [
+    {
+      "id": "example/echo",
+      "title": "Echo ping",
+      "description": "Send one example echo webhook payload",
+      "manifests": ["example-echo", "example-echo-poll", "examples-all-fixtures"],
+      "ingress": {
+        "source": "synapse.webhooks.example-echo-ping.v1",
+        "fixtures": [{ "file": "fixtures/example-agent-echo/ping.json" }]
+      },
+      "terminalEventTypes": ["example.pong.v1"]
+    }
+  ]
+}

@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   parseRuntimeManifestFile,
-  parseRuntimeManifestJson,
   runtimeManifestSchema,
 } from '../../src/index.js';
 import { manifestDocumentBase } from '../helpers/manifest-document-base.js';
@@ -16,6 +15,7 @@ describe('runtimeManifestSchema', () => {
     for (const rel of [
       'manifests/application.json',
       'manifests/examples/echo.json',
+      'manifests/examples/echo-poll.json',
       'manifests/examples/all.json',
       'manifests/debug/reviewer-only.json',
     ]) {
@@ -29,9 +29,7 @@ describe('runtimeManifestSchema', () => {
         ...manifestDocumentBase,
         schema: 'libs/runtime-manifest/schemas/manifest/other.schema.json',
         name: 'x',
-        agents: [
-          { name: 'a', handler: 'agents/x.ts', handles: ['example.ping.v1'] },
-        ],
+        agents: [{ name: 'example-echo' }],
       }),
     ).toThrow();
   });
@@ -41,79 +39,40 @@ describe('runtimeManifestSchema', () => {
       runtimeManifestSchema.parse({
         ...manifestDocumentBase,
         name: 'x',
-        agents: [
-          { name: 'a', handler: 'agents/x.ts', handles: ['example.ping.v1'] },
-        ],
+        agents: [{ name: 'example-echo' }],
         enabled: true,
       }),
     ).toThrow();
   });
 
-  it('rejects empty handles array', () => {
-    expect(() =>
-      runtimeManifestSchema.parse({
-        ...manifestDocumentBase,
-        name: 'x',
-        agents: [{ name: 'a', handler: 'agents/x.ts', handles: [] }],
-      }),
-    ).toThrow();
-  });
-
-  it('rejects agent fields beyond name, handler, handles, fixtures', () => {
+  it('rejects agents[].handler and agents[].handles', () => {
     expect(() =>
       runtimeManifestSchema.parse({
         ...manifestDocumentBase,
         name: 'x',
         agents: [
           {
-            name: 'a',
-            handler: 'agents/x.ts',
+            name: 'example-echo',
+            handler: 'examples/agents/example-agent-echo/src/echo-agent.ts',
             handles: ['example.ping.v1'],
-            emits: ['example.pong.v1'],
           },
         ],
       }),
     ).toThrow();
   });
 
-  it('accepts fixtures.webhook and fixtures.adapter on agent rows', () => {
-    const parsed = runtimeManifestSchema.parse({
-      ...manifestDocumentBase,
-      name: 'x',
-      agents: [
-        {
-          name: 'agent-reviewer',
-          handler: 'agents/agent-reviewer/src/review-pr-agent.ts',
-          handles: ['pr.received.v1'],
-          fixtures: {
-            webhook: [
-              'fixtures/agent-reviewer/review-pr-gitlab-synapse.fixture.json',
-            ],
-            adapter: [
-              'fixtures/agent-reviewer/adapters/gitlab-fetch-changes-synapse.json',
-            ],
-          },
-        },
-      ],
-    });
-    expect(parsed.agents[0]?.fixtures?.adapter[0]).toContain(
-      'gitlab-fetch-changes',
-    );
-  });
-
-  it('rejects legacy adapterFixtures on agent rows', () => {
+  it('rejects agents[].fixtures', () => {
     expect(() =>
       runtimeManifestSchema.parse({
         ...manifestDocumentBase,
         name: 'x',
         agents: [
           {
-            name: 'agent-reviewer',
-            handler: 'agents/agent-reviewer/src/review-pr-agent.ts',
-            handles: ['pr.received.v1'],
-            adapterFixtures: {
-              gitlabChanges: 'fixtures/agent-reviewer/legacy-gitlab.json',
-              piReview: 'fixtures/agent-reviewer/legacy-pi.md',
+            name: 'example-echo',
+            fixtures: {
+              webhook: [
+                'examples/fixtures/example-agent-echo/echo.fixture.json',
+              ],
             },
           },
         ],
@@ -121,42 +80,24 @@ describe('runtimeManifestSchema', () => {
     ).toThrow();
   });
 
-  it('rejects legacy fixtures string array on agent rows', () => {
-    expect(() =>
-      runtimeManifestSchema.parse({
-        ...manifestDocumentBase,
-        name: 'x',
-        agents: [
-          {
-            name: 'a',
-            handler: 'agents/x.ts',
-            handles: ['example.ping.v1'],
-            fixtures: [
-              'examples/fixtures/example-agent-echo/echo.fixture.json',
-            ],
-          },
-        ],
-      }),
-    ).toThrow();
-  });
-
-  it('rejects webhooks.fixtures on manifest', () => {
-    expect(() =>
-      runtimeManifestSchema.parse({
-        ...manifestDocumentBase,
-        name: 'x',
-        agents: [
-          {
-            name: 'a',
-            handler: 'agents/x.ts',
-            handles: ['example.ping.v1'],
-          },
-        ],
-        webhooks: {
-          routes: ['synapse.webhooks.prs.v1'],
-          fixtures: ['review-pr/gitlab-synapse'],
+  it('accepts webhooks and pollers as source arrays', () => {
+    const parsed = runtimeManifestSchema.parse({
+      ...manifestDocumentBase,
+      name: 'x',
+      agents: [{ name: 'example-echo' }],
+      webhooks: [{ source: 'synapse.webhooks.example-echo-ping.v1' }],
+      pollers: [
+        {
+          source: 'synapse.poll.example-in-memory-heartbeat.v1',
+          intervalMs: 60_000,
         },
-      }),
-    ).toThrow();
+      ],
+    });
+    expect(parsed.webhooks?.[0]?.source).toBe(
+      'synapse.webhooks.example-echo-ping.v1',
+    );
+    expect(parsed.pollers?.[0]?.source).toBe(
+      'synapse.poll.example-in-memory-heartbeat.v1',
+    );
   });
 });

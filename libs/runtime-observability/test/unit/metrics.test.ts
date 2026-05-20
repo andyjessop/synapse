@@ -122,6 +122,17 @@ describe('runtime metric instruments', () => {
       status: 'succeeded',
       replay: 'false',
     });
+    handle.metrics.recordPollTick({
+      source_id: 'synapse.poll.example-in-memory-heartbeat.v1',
+      outcome: 'success',
+    });
+    handle.metrics.recordPollEmit({
+      source_id: 'synapse.poll.example-in-memory-heartbeat.v1',
+    });
+    handle.metrics.recordPollSkip({
+      source_id: 'synapse.poll.example-in-memory-heartbeat.v1',
+      reason: 'lock_held',
+    });
 
     const resourceMetrics = await getExportedMetrics(handle);
     const metricNames = resourceMetrics.flatMap((resourceMetric) =>
@@ -136,6 +147,9 @@ describe('runtime metric instruments', () => {
       'synapse.bullmq.jobs',
       'synapse.events.recorded',
       'synapse.outbox.operations',
+      'synapse.poll.emits',
+      'synapse.poll.skips',
+      'synapse.poll.ticks',
     ]);
 
     await handle.shutdown();

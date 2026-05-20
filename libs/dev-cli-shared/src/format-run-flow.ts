@@ -11,6 +11,14 @@ import type {
   DevOnceRunRecordEvent,
 } from './run-record.js';
 
+/** `DevOnceRunRecord` on disk, or `SynapseRunArtifact` from `dev:once` (uses `rootEvent`). */
+export type RunFlowRecord = {
+  inputEventId?: string;
+  rootEvent?: { id: string };
+  events: readonly DevOnceRunRecordEvent[];
+  agentRuns: readonly DevOnceRunRecordAgentRun[];
+};
+
 const FLOW_RULE = '-'.repeat(56);
 
 const LAST_ERROR_MAX = 600;
@@ -127,10 +135,13 @@ function renderEventFlow(
   return lines;
 }
 
-export function formatRunRecordFlow(record: DevOnceRunRecord): string {
-  const inputEvent = record.events.find(
-    (event) => event.id === record.inputEventId,
-  );
+function resolveRunFlowInputEventId(record: RunFlowRecord): string | undefined {
+  return record.inputEventId ?? record.rootEvent?.id;
+}
+
+export function formatRunRecordFlow(record: RunFlowRecord): string {
+  const inputEventId = resolveRunFlowInputEventId(record);
+  const inputEvent = record.events.find((event) => event.id === inputEventId);
   if (inputEvent === undefined) {
     return `${color.bold('Flow')}\n${FLOW_RULE}\n${color.red('(input event missing from record)')}`;
   }

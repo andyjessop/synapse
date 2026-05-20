@@ -80,6 +80,30 @@ describe.skipIf(!postgresAvailable)('streams runtime store', () => {
     });
   });
 
+  it('appendEvent returns existing id on duplicate source and externalId', async () => {
+    await withIsolatedStore(async (pool) => {
+      const externalId = `dedupe:${randomUUID()}`;
+      const first = await appendEvent(pool, {
+        type: 'ticket.opened.v1',
+        data: ticketOpenedData('T-dedupe'),
+        source: 'synapse://dedupe',
+        externalId,
+      });
+      const second = await appendEvent(pool, {
+        type: 'ticket.opened.v1',
+        data: ticketOpenedData('T-dedupe-again'),
+        source: 'synapse://dedupe',
+        externalId,
+      });
+      expect(second.id).toBe(first.id);
+      const count = await pool.query(
+        `select count(*)::int as c from events where source = $1 and external_id = $2`,
+        ['synapse://dedupe', externalId],
+      );
+      expect(Number(count.rows[0].c)).toBe(1);
+    });
+  });
+
   it('ingress_same_external_id_different_source_creates_two_events', async () => {
     await withIsolatedStore(async (pool) => {
       const externalId = `shared:${randomUUID()}`;

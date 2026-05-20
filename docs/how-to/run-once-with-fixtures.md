@@ -1,38 +1,38 @@
 ---
-title: Run once with fixtures
+title: Run once with scenarios
 kind: how-to
 owner: docs
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - scripts/dev-once/**
   - manifests/**
-  - fixtures/**
+  - scenarios/**
 ---
 
-# Run once with fixtures
+# Run once with scenarios
 
 ## Goal
 
-Send one manifest fixture into the running local stack and inspect the resulting event flow.
+Run one manifest **scenario** against the running local stack and inspect the resulting event flow.
 
 ## Before You Start
 
-- `npm run dev:infra` (Postgres + Redis)
+- `npm run dev:infra` (Postgres + Redis) when using the full stack
 - `npm run dev` (or `npm run dev -- --manifest <path>`) in another terminal
 
 ## Steps
 
-1. List fixtures for the active session:
+1. List scenarios for the active session:
 
    ```bash
    npm run dev:once -- --list
    ```
 
-2. Run a fixture by id:
+2. Run a scenario by id (`--fixture` is an alias):
 
    ```bash
-   npm run dev:once -- --fixture review-pr/gitlab-synapse
+   npm run dev:once -- --scenario review-pr/gitlab-synapse
    ```
 
 3. Or use the interactive picker:
@@ -46,22 +46,31 @@ Send one manifest fixture into the running local stack and inspect the resulting
 5. Machine-readable artifact:
 
    ```bash
-   npm run dev:once -- --fixture example/echo --json
+   npm run dev:once -- --scenario example/echo --json
    ```
 
 ## Verify
 
 - CLI prints `status: succeeded` (or inspect `--json` artifact).
-- Graph snapshot under `tmp/dev/runs/` when webhooks accepted the ingress.
+- Graph snapshot under `tmp/dev/runs/` when ingress accepted the run.
 
 ## Tests
 
 ```ts
+import { eventRegistry } from 'runtime-events';
+import { shippedAgentsByName } from '../../../apps/worker/src/shipped-agents.js';
+
+const knownEventTypes = new Set(Object.keys(eventRegistry));
+
 await withTestDevServer(
-  { manifestPath: 'manifests/application.json' },
+  {
+    manifestPath: 'manifests/application.json',
+    shippedAgents: shippedAgentsByName,
+    knownEventTypes,
+  },
   async (dev) => {
     const artifact = await runDevOnce({
-      fixtureId: 'review-pr/gitlab-synapse',
+      scenarioId: 'review-pr/gitlab-synapse',
       env: dev.env,
     });
     expect(artifact.status).toBe('succeeded');
@@ -73,7 +82,7 @@ await withTestDevServer(
 
 | Issue | Fix |
 | --- | --- |
-| Missing `.synapse/dev-session.json` | Start `npm run dev` first |
+| Ingress unreachable | Start `npm run dev` first |
 | `dev:once --manifest` error | Use `npm run dev -- --manifest` instead |
-| Fixture not listed | Add `agents[].fixtures` path in the manifest JSON file |
+| Scenario not listed | Add `scenarios[]` path on the manifest; check scenario `id` |
 | Webhooks unreachable | Ensure `npm run dev` is still running |

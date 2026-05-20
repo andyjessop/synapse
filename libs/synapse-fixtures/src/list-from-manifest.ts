@@ -1,6 +1,9 @@
 import type { RuntimeManifest } from 'runtime-manifest';
 
-import { collectAgentFixturePaths } from './discover-agent-fixtures.js';
+import {
+  collectAgentPollFixturePaths,
+  collectAgentWebhookFixturePaths,
+} from './discover-agent-fixtures.js';
 import { parseSynapseFixtureFile } from './parse.js';
 
 export type ManifestFixtureListEntry = {
@@ -16,7 +19,10 @@ export function listManifestFixtures(
 ): ManifestFixtureListEntry[] {
   const entries: ManifestFixtureListEntry[] = [];
   for (const agent of manifest.agents) {
-    const paths = collectAgentFixturePaths(agent, repoRoot);
+    const paths = [
+      ...collectAgentWebhookFixturePaths(agent, repoRoot),
+      ...collectAgentPollFixturePaths(agent, repoRoot),
+    ];
     for (const fixturePath of paths) {
       const fixture = parseSynapseFixtureFile(repoRoot, fixturePath);
       entries.push({
@@ -40,7 +46,10 @@ export function resolveFixtureById(
   agentName: string;
 } {
   for (const agent of manifest.agents) {
-    const paths = collectAgentFixturePaths(agent, repoRoot);
+    const paths = [
+      ...collectAgentWebhookFixturePaths(agent, repoRoot),
+      ...collectAgentPollFixturePaths(agent, repoRoot),
+    ];
     for (const fixturePath of paths) {
       const fixture = parseSynapseFixtureFile(repoRoot, fixturePath);
       if (fixture.id === fixtureId) {

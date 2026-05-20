@@ -65,6 +65,8 @@ export const piToolCallCompletedSchema = z
     tool_call_id: z.string().min(1),
     tool_name: z.string().min(1),
     is_error: z.boolean(),
+    args: piToolCallArgsSchema,
+    result_summary: z.string().min(1).max(512).optional(),
     input_event_id: z.string().min(1),
     review_subject: z.string().min(1),
     timeline_order: z.number().int().nonnegative(),

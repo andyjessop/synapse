@@ -32,3 +32,4 @@ How-to guides solve specific problems. Use them when you know what you want to a
 - [create-an-adapter.md](create-an-adapter.md)
 - [debug-with-traces.md](debug-with-traces.md)
 - [call-llms.md](call-llms.md)
+- [run-once-with-fixtures.md](run-once-with-fixtures.md)

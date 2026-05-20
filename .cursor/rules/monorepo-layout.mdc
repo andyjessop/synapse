@@ -16,6 +16,9 @@ alwaysApply: true
 | Prefix | Role |
 | --- | --- |
 | `agents/*` | **Application** capability agents shipped with the product (e.g. `agent-reviewer`). |
+| `adapters/*` | **External IO** adapter implementations (vendor clients, `defineAdapterMethod` modules, method contracts). Invoked via `apps/adapters` in production paths; not under `libs/`. See `specs/adapters.md` and **adapter-runtime-boundaries**. |
+| `libs/runtime-*` | **Generic** runtime primitives only (events, store, worker, adapter RPC machinery). No vendor schemas, no concrete adapter or agent registration, no imports from `adapters/*`, `agents/*`. |
+| `apps/adapters` | Adapter RPC **composition root**: method registry, `SHIPPED_ADAPTER_SOURCES`, live deps, dev-only scenario FIFO. Starts before worker in `npm run dev`. |
 | `examples/agents/*` | Reference/example agents (`example-agent-*` packages). Not loaded by default `npm run dev`. Load via **`manifests/examples/*.json`** (`npm run dev:example` or `npm run dev -- --manifest …`) + **`npm run dev:once`**. Examples without HTTP routes are verified through lower-level package/integration tests until a typed webhook route exists. Integration tests still run in the main CI test suite. |
 | `manifests/` | Runtime manifest JSON (`application.json`, `examples/`, `debug/`) — authoritative agent registration for worker/dev. |
 | `examples/fixtures/*` | Static fixtures for example agents. |

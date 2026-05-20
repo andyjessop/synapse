@@ -3,7 +3,7 @@ title: Commands
 kind: reference
 owner: repo
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - package.json
   - README.md
@@ -11,6 +11,7 @@ freshness_triggers:
   - scripts/dev-example.ts
   - scripts/dev-once/**
   - manifests/**
+  - scenarios/**
 ---
 
 # Commands
@@ -38,8 +39,11 @@ Repo-root commands and Nx invocation rules for Synapse.
 | `npm run dev -- --manifest <path>` | Dev stack with a specific manifest (e.g. `manifests/examples/echo.json`) |
 | `npm run dev:example` | Shortcut: same as `npm run dev -- --manifest manifests/examples/echo.json` |
 | `npm run dev:full` | Same as `npm run dev` |
-| `npm run dev:once -- --fixture <id>` | POST one manifest fixture; uses `.synapse/dev-session.json` from running `npm run dev` (no `--manifest` on this command) |
-| `npm run dev:once -- --list` | List fixture ids allowed for the current dev session manifest |
+| `npm run dev:once -- --scenario <id>` | Run one scenario; manifest defaults to `manifests/application.json`. Requires running `npm run dev`. `--fixture` is an alias for `--scenario`. |
+| `npm run dev:once -- --manifest <path>` | Override manifest for list/run (must match the worker manifest from `npm run dev`) |
+| `npm run dev:once:clean` | Same as `dev:once`, but truncate loopback Postgres runtime tables (`events`, `agent_runs`) and drain the BullMQ reactor queue before ingress (repeatable runs without deduped replay) |
+| `npm run dev:once:clean -- --scenario <id>` | Wipe then run one scenario |
+| `npm run dev:once -- --list` | List scenario ids whose `manifests[]` includes the resolved manifest name (default application) |
 | `npm run docs:check` | Validate documentation structure |
 | `npm run test:docs` | Run documentation unit tests |
 | `npx nx run-many -t lint --all && npx biome check biome.json vitest.config.ts` | Lint all packages |
@@ -48,15 +52,16 @@ Repo-root commands and Nx invocation rules for Synapse.
 | `npx nx run-many -t format --all && npx biome format --write biome.json vitest.config.ts` | Format all packages |
 | `npx tsx scripts/docs-check.ts` | Same as `npm run docs:check` |
 
-Example: `npm run dev -- --manifest manifests/examples/echo.json` then `npm run dev:once -- --fixture example/echo`.
+Example: `npm run dev -- --manifest manifests/examples/echo.json` then `npm run dev:once -- --manifest manifests/examples/echo.json --scenario example/echo`.
 
 ## Examples
 
 ```bash
 npm run dev
 npm run dev -- --manifest manifests/examples/echo.json
-npm run dev:once -- --fixture review-pr/gitlab-synapse
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario review-pr/gitlab-synapse
+npm run dev:once:clean -- --scenario review-pr/gitlab-synapse
+npm run dev:once -- --scenario example/echo
 npm run dev:once -- --list
 
 npx nx run worker:test

@@ -3,10 +3,11 @@ title: Local runtime example (echo)
 kind: tutorial
 owner: runtime
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - README.md
   - manifests/examples/echo.json
+  - scenarios/echo.scenarios.json
   - examples/fixtures/example-agent-echo/**
   - examples/agents/example-agent-echo/**
   - apps/worker/**
@@ -34,7 +35,7 @@ You will run **`example/echo`**: local infrastructure, a worker loaded from **`m
 npm install
 ```
 
-2. List example webhook fixtures (optional):
+2. List example scenarios (optional):
 
 ```bash
 npm run dev:example
@@ -47,7 +48,7 @@ npm run dev:once -- --list
 ```bash
 npm run dev:example
 # second terminal:
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario example/echo
 ```
 
 Expected output includes status lines, durable **`root_id`**, event chain, and links when the stack is healthy. Startup should print `synapse manifest:` pointing at `manifests/examples/echo.json`.
@@ -68,14 +69,14 @@ limit 10;
 ## What You Learned
 
 - Local infra uses non-default host ports so multiple stacks can coexist.
-- **Runtime manifests** declare which agents load, which event types they handle, and which webhook route set is active.
-- **`npm run dev:example`** + **`npm run dev:once -- --fixture example/echo`** exercise example agents with **HTTP ingress** through `apps/webhooks`.
+- **Runtime manifests** mount agent names; **definitions** (`defineAgent`) declare handles and handlers.
+- **`npm run dev:example`** + **`npm run dev:once -- --scenario example/echo`** exercise example agents with **HTTP ingress** through `apps/ingress`.
 - **`npx nx run example-agent-echo:test`** proves the same agent via **`withTestDevServer` + `runDevOnce`** without a second terminal.
 - **`npm run dev`** (default manifest) is the long-lived stack for application agents.
 
 ## Next Steps
 
-- [Runtime manifest](../reference/runtime-manifest.md) — full manifest reference
+- [Runtime manifest](../reference/runtime-manifest.md)
 - [Local agent development](../how-to/local-agent-development.md)
 - Example agents curriculum (`examples/agents/README.md`)
 - [Run and test agents](../how-to/run-and-test-agents.md)

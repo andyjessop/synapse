@@ -3,15 +3,13 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { devSessionFilePath, writeDevSession } from 'dev-cli-shared';
-
-export { devSessionFilePath } from 'dev-cli-shared';
 import { loadDotEnvLocal, parseRuntimeConfig } from 'runtime-config';
 import {
+  declaredManifestWebhookRouteIds,
   formatManifestStartupLine,
   parseRuntimeManifestFile,
   resolveManifestPath,
-  resolveManifestWebhookRouteIds,
+  resolveManifestPollSources,
 } from 'runtime-manifest';
 import { createRuntimeStorePool, migrateRuntimeStore } from 'runtime-store';
 
@@ -31,11 +29,12 @@ export type DevRuntimeOptions = {
 
 export type DevRuntimePlan = {
   repoRoot: string;
-  stateDir: string;
   composeFile: string;
   env: NodeJS.ProcessEnv;
   options: DevRuntimeOptions;
   manifestPath: string;
+  /** True when manifest lists webhook routes or poll sources (HTTP ingress required). */
+  needsIngress: boolean;
   processes: readonly DevRuntimeProcess[];
 };
 
@@ -66,21 +65,77 @@ export function parseDevCliArgs(argv: readonly string[]): DevRuntimeOptions {
   return options;
 }
 
-function processNamesIncludeWorker(
-  processes: readonly DevRuntimeProcess[],
+/** Default Node inspector port for the worker when `SYNAPSE_DEV_DEBUG_WORKER` is set. */
+export const DEV_WORKER_DEBUG_PORT = 9230;
+
+export function isDevWorkerDebugEnabled(
+  env: Record<string, string | undefined>,
 ): boolean {
-  return processes.some((p) => p.name === 'worker');
+  const value = env.SYNAPSE_DEV_DEBUG_WORKER;
+  return value === '1' || value === 'true';
 }
 
-export function getDevRuntimeProcesses(): readonly DevRuntimeProcess[] {
+export function devWorkerDebugPort(
+  env: Record<string, string | undefined>,
+): number {
+  const raw = env.SYNAPSE_DEV_DEBUG_WORKER_PORT;
+  if (raw === undefined || raw === '') {
+    return DEV_WORKER_DEBUG_PORT;
+  }
+  const port = Number.parseInt(raw, 10);
+  if (!Number.isFinite(port) || port <= 0) {
+    return DEV_WORKER_DEBUG_PORT;
+  }
+  return port;
+}
+
+/** Worker argv for `npm run dev` — direct `tsx` + `--inspect` when debugging (avoids npx/nx wrapper noise). */
+export function getDevWorkerStartCommand(
+  env: Record<string, string | undefined>,
+): readonly string[] {
+  if (!isDevWorkerDebugEnabled(env)) {
+    return ['npx', 'nx', 'run', 'worker:start'];
+  }
+  const port = devWorkerDebugPort(env);
+  return [
+    'node',
+    `--inspect=${port}`,
+    '--import',
+    'tsx',
+    'apps/worker/src/main.ts',
+  ];
+}
+
+/**
+ * Whether the HTTP ingress child process is required for a dev session.
+ * Resolved in {@link createDevRuntimePlan} from manifest `webhooks.routes` and
+ * `pollers.sources`; passed into {@link getDevRuntimeProcesses} so process
+ * selection stays aligned with the written dev session webhook/poller snapshot.
+ */
+export function devRuntimeNeedsIngress(input: {
+  webhookRouteIds: readonly unknown[];
+  pollSources: readonly unknown[];
+}): boolean {
+  return input.webhookRouteIds.length > 0 || input.pollSources.length > 0;
+}
+
+export function getDevRuntimeProcesses(
+  env: Record<string, string | undefined> = process.env,
+  options?: { needsIngress: boolean },
+): readonly DevRuntimeProcess[] {
   const processes: DevRuntimeProcess[] = [
-    { name: 'worker', command: ['npx', 'nx', 'run', 'worker:start'] },
+    {
+      name: 'adapters',
+      command: ['npx', 'nx', 'run', 'adapters:start'],
+      critical: true,
+    },
+    { name: 'worker', command: getDevWorkerStartCommand(env) },
   ];
 
-  if (processNamesIncludeWorker(processes)) {
+  if (options?.needsIngress === true) {
     processes.push({
-      name: 'webhooks',
-      command: ['npx', 'nx', 'run', 'webhooks:start'],
+      name: 'ingress',
+      command: ['npx', 'nx', 'run', 'ingress:start'],
     });
   }
 
@@ -93,39 +148,45 @@ export function createDevRuntimePlan(
   options: DevRuntimeOptions = {},
 ): DevRuntimePlan {
   const repoRoot = resolveDevRepoRoot(metaUrl);
-  const stateDir = join(repoRoot, 'tmp', 'synapse-dev-state');
   const envWithLocal = loadDotEnvLocal(join(repoRoot, '.env.local'), {
     ...env,
   });
-  const manifestPath = resolveManifestPath(repoRoot, envWithLocal, options.manifestPath);
+  const manifestPath = resolveManifestPath(
+    repoRoot,
+    envWithLocal,
+    options.manifestPath,
+  );
   const manifest = parseRuntimeManifestFile(manifestPath);
-  const webhookRoutes = resolveManifestWebhookRouteIds(manifest);
+  const webhookRoutes = declaredManifestWebhookRouteIds(manifest);
+  const pollSources = resolveManifestPollSources(manifest).map((s) => ({
+    id: s.id,
+    intervalMs: s.intervalMs,
+    enabled: s.enabled,
+  }));
+
+  const needsIngress = devRuntimeNeedsIngress({
+    webhookRouteIds: webhookRoutes,
+    pollSources,
+  });
 
   const merged: NodeJS.ProcessEnv = {
     ...envWithLocal,
-    STATE_DIR: envWithLocal.STATE_DIR ?? stateDir,
     SYNAPSE_RUNTIME_MANIFEST: manifestPath,
+    SYNAPSE_DEV_SCENARIO_CONTEXT: '1',
+    ADAPTERS_BASE_URL:
+      envWithLocal.ADAPTERS_BASE_URL?.trim() || 'http://127.0.0.1:3104',
   };
   if (existsSync(repoRoot)) {
     mkdirSync(join(repoRoot, 'tmp', 'dev', 'runs'), { recursive: true });
-    mkdirSync(join(repoRoot, '.synapse'), { recursive: true });
   }
-  writeDevSession(repoRoot, {
-    manifest_path: manifestPath,
-    manifest_name: manifest.name,
-    webhooks: {
-      routes: webhookRoutes,
-    },
-  });
-
   return {
     repoRoot,
-    stateDir,
     composeFile: join(repoRoot, 'local', 'docker-compose.yml'),
     options,
     manifestPath,
+    needsIngress,
     env: merged,
-    processes: getDevRuntimeProcesses(),
+    processes: getDevRuntimeProcesses(merged, { needsIngress }),
   };
 }
 
@@ -176,7 +237,19 @@ export function formatDevStartupBanner(plan: DevRuntimePlan): string {
     '  Jaeger    http://127.0.0.1:26686',
   );
 
-  lines.push('  Webhooks  http://127.0.0.1:3102 (see apps/webhooks/README.md)');
+  lines.push('  Adapters  http://127.0.0.1:3104');
+
+  if (plan.needsIngress) {
+    lines.push(
+      '  Ingress   http://127.0.0.1:3102 (see apps/ingress/README.md)',
+    );
+  }
+
+  if (isDevWorkerDebugEnabled(plan.env)) {
+    lines.push(
+      `  Worker debug: Node inspector on 127.0.0.1:${devWorkerDebugPort(plan.env)} (VS Code: dev (worker inspect))`,
+    );
+  }
 
   lines.push(
     '  Runtime logs appear below (Ctrl+C stops all processes).',
@@ -193,7 +266,10 @@ export function formatDevStartupBanner(plan: DevRuntimePlan): string {
 export async function startDevRuntime(
   plan: DevRuntimePlan = createDevRuntimePlan(),
 ): Promise<void> {
-  mkdirSync(plan.stateDir, { recursive: true });
+  const { confirmStopRunningDevProcesses } = await import(
+    './dev-running-processes.js'
+  );
+  await confirmStopRunningDevProcesses(plan.repoRoot, plan.env);
 
   process.stdout.write(`${formatManifestStartupLine(plan.manifestPath)}\n`);
 
@@ -276,7 +352,7 @@ export async function startDevRuntime(
 }
 
 export function isDevCriticalProcess(name: string): boolean {
-  return name === 'worker';
+  return name === 'worker' || name === 'adapters';
 }
 
 function writePrefixed(name: string, chunk: Buffer, stderr = false): void {

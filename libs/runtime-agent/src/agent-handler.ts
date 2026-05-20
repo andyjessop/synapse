@@ -1,3 +1,4 @@
+import type { AdapterPort } from 'runtime-adapters';
 import type { z } from 'zod';
 
 import type { AgentSqliteDb } from './sqlite.js';
@@ -7,6 +8,7 @@ export type AgentContext = {
   agentName: string;
   input: SynapseEvent;
   run: { id: string; attempt: number };
+  adapters: AdapterPort;
   emit: (
     type: string,
     data: unknown,

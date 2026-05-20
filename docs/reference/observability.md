@@ -34,6 +34,10 @@ Source: `libs/runtime-observability`. Use `runWithRuntimeSpan` for runtime hops.
 | `reactor.run` | reactor run |
 | `reactor.emit` | reactor emit |
 | `adapter.request` | adapter request |
+| `webhook.request` | webhook request |
+| `ingress.request` | ingress request |
+| `poll.tick` | poll tick |
+| `poll.lock` | poll lock |
 
 ### Metric instrument names
 
@@ -42,6 +46,9 @@ Source: `libs/runtime-observability`. Use `runWithRuntimeSpan` for runtime hops.
 - `synapse.bullmq.jobs`
 - `synapse.adapter.requests`
 - `synapse.agent.runs`
+- `synapse.poll.ticks`
+- `synapse.poll.emits`
+- `synapse.poll.skips`
 
 Label builders: `buildEventMetricLabels`, `buildOutboxMetricLabels`, `buildBullmqMetricLabels`, `buildAdapterMetricLabels`, `buildAgentRunMetricLabels`.
 
@@ -50,8 +57,10 @@ Structured logs use `buildRuntimeLogFields` with trace/span IDs. Audit context v
 ## Examples
 
 ```ts
-await runWithRuntimeSpan({ hop: 'reactor.run', tracer, operation: 'example-ping', run: async () => { ... } });
+await runWithRuntimeSpan({ hop: 'reactor.run', tracer, agent: 'example-echo', reactor: 'handler', run: async () => { ... } });
 ```
+
+Jaeger direct trace URLs: `buildJaegerTraceUrl(jaegerUiUrl, traceparent)` → `{jaegerUiUrl}/trace/{traceId}`. `dev:once` prints this when the ingress event stored a `traceparent`.
 
 ## Related Pages
 

@@ -58,6 +58,8 @@ const validByType: Record<EventType, unknown> = {
     tool_call_id: 'tc-1',
     tool_name: 'read',
     is_error: false,
+    args: { summary: 'read README.md' },
+    result_summary: 'read 42 lines',
     input_event_id: 'evt-in-1',
     review_subject: 'gitlab:group/project!1',
     timeline_order: 1,

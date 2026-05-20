@@ -38,6 +38,7 @@ export type {
   RuntimeStore,
   SynapseEvent,
 } from './types';
+export { wipeDevRuntimeStore } from './wipe-dev-store';
 export { createRuntimeStorePool, migrateRuntimeStore, migrateRuntimeStoreTo };
 
 const TRANSIENT_SQLSTATES = new Set(['40001', '40P01']);
@@ -55,8 +56,11 @@ export function createRuntimeStore(pool: RuntimePool): RuntimeStore {
     markRunSucceeded: (runId) => markRunSucceeded(pool, runId),
     markRunFailed: (runId, error, failureDetail) =>
       markRunFailed(pool, runId, error, failureDetail),
+    releaseRunForOtherWorker: (runId) => releaseRunForOtherWorker(pool, runId),
     repairStaleRuns: () => repairStaleRuns(pool),
     loadEvent: (eventId) => loadEvent(pool, eventId),
+    loadInputEventTraceForRun: (runId) =>
+      loadInputEventTraceForRun(pool, runId),
   };
 }
 
@@ -88,9 +92,10 @@ export async function appendEvent(
       const inserted = await client.query(
         `
           insert into events (
-            id, type, source, external_id, subject, data, root_id, parent_id
+            id, type, source, external_id, subject, data, root_id, parent_id,
+            traceparent, tracestate
           )
-          values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+          values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)
           on conflict (source, external_id) do nothing
           returning *
         `,
@@ -103,6 +108,8 @@ export async function appendEvent(
           JSON.stringify(input.data),
           rootId,
           input.parentId ?? null,
+          input.traceparent ?? null,
+          input.tracestate ?? null,
         ],
       );
 
@@ -125,17 +132,7 @@ export async function appendEvent(
       }
 
       const row = inserted.rows[0] as Record<string, unknown>;
-      return {
-        id: String(row.id),
-        type: String(row.type),
-        source: String(row.source),
-        externalId: String(row.external_id),
-        subject: optionalString(row.subject),
-        data: input.data,
-        rootId: String(row.root_id),
-        parentId: optionalString(row.parent_id),
-        createdAt: new Date(String(row.created_at)).toISOString(),
-      };
+      return mapEventsTableRowToSynapseEvent(row);
     }),
   );
 }
@@ -331,6 +328,25 @@ export async function markRunSucceeded(
   );
 }
 
+export async function releaseRunForOtherWorker(
+  pool: RuntimePool,
+  runId: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    `
+      update agent_runs
+      set status = 'pending',
+          locked_until = null,
+          updated_at = now()
+      where id = $1
+        and status = 'running'
+      returning id
+    `,
+    [runId],
+  );
+  return result.rowCount === 1;
+}
+
 export async function markRunFailed(
   pool: RuntimePool,
   runId: string,
@@ -421,6 +437,30 @@ export async function loadEvent(
     throw new Error(`Missing event: ${eventId}`);
   }
   return mapEventsTableRowToSynapseEvent(result.rows[0]);
+}
+
+export async function loadInputEventTraceForRun(
+  pool: RuntimePool,
+  runId: string,
+): Promise<{ traceparent?: string; tracestate?: string }> {
+  const result = await pool.query(
+    `
+      select e.traceparent, e.tracestate
+      from agent_runs r
+      inner join events e on e.id = r.input_event_id
+      where r.id = $1
+      limit 1
+    `,
+    [runId],
+  );
+  if (result.rowCount !== 1) {
+    return {};
+  }
+  const row = result.rows[0] as Record<string, unknown>;
+  return {
+    traceparent: optionalString(row.traceparent),
+    tracestate: optionalString(row.tracestate),
+  };
 }
 
 export async function selectEventById(
@@ -515,6 +555,8 @@ function mapEventsTableRowToSynapseEvent(
     data: row.data as SynapseEvent['data'],
     rootId: String(row.root_id),
     parentId: optionalString(row.parent_id),
+    traceparent: optionalString(row.traceparent),
+    tracestate: optionalString(row.tracestate),
     createdAt: new Date(String(row.created_at)).toISOString(),
   };
 }

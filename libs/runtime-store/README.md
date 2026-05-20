@@ -21,7 +21,7 @@ and the old CloudEvents envelope schema are removed from the active runtime.
 return the existing event. Event **`data`** is stored **inline in Postgres**
 (JSONB, ≤ **1 MiB** per event).
 
-For local HTTP ingress, **`apps/webhooks`** writes one pretty-printed run snapshot
+For local HTTP ingress, **`apps/ingress`** writes one pretty-printed run snapshot
 per accepted request under **`<repoRoot>/tmp/dev/runs/<YYYYMMDDHHmmss>_<input_event_id>.json`**
 (events, agent runs, and hydrated payloads). That directory is the dev inspection
 log; it is not a second persistence layer for the runtime.

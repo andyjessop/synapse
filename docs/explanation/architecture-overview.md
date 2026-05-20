@@ -38,7 +38,7 @@ agent reactors emit follow-up events or call adapters
 
 ## How It Works
 
-- **Apps** (`worker`, `webhooks`) are runnable processes.
+- **Apps** (`worker`, `ingress`) are runnable processes.
 - **Libs** (`runtime-*`, `pi`) are shared foundations and contracts.
 - **Agents** own capability behavior and event ownership.
 - **Adapters** own external I/O boundaries.

@@ -1,8 +1,8 @@
 import type {
-  AgentDefinition,
   AgentHandler,
   AgentSqliteDefinition,
   ReactorDefinition,
+  RegistryAgentDefinition,
 } from 'runtime-agent';
 import {
   assertAgentNameSqliteSlug,
@@ -46,7 +46,7 @@ export function wrapManifestRuntimeRegistry(
 }
 
 export function createRuntimeRegistry(
-  agents: readonly AgentDefinition[],
+  agents: readonly RegistryAgentDefinition[],
 ): RuntimeRegistry {
   const agentNames = new Set<string>();
   const byEventType = new Map<string, RegisteredAgent[]>();

@@ -19,8 +19,6 @@ import {
   type RuntimePool,
 } from 'runtime-store';
 import {
-  executeRunFromJobData,
-  REACTOR_JOB_NAME,
   REACTOR_QUEUE_NAME,
   type RuntimeLogger,
   type StreamSubscription,
@@ -30,6 +28,7 @@ import {
 } from 'runtime-worker';
 import { z } from 'zod';
 import { loadWorkerManifestRegistry } from './manifest-registry';
+import { processReactorJob } from './process-reactor-job.js';
 
 const workerEnvSchema = z
   .object({
@@ -109,11 +108,8 @@ export async function bootstrapWorker(
 
     const manifestArgv =
       cliManifest ?? parseWorkerCliManifest(process.argv.slice(2));
-    const { registry } = await loadWorkerManifestRegistry(
-      envWithLocal,
-      metaUrl,
-      manifestArgv,
-    );
+    const { registry, manifest, manifestPath } =
+      await loadWorkerManifestRegistry(envWithLocal, metaUrl, manifestArgv);
 
     resources.observability = initializeObservability({
       serviceName: 'worker',
@@ -131,7 +127,7 @@ export async function bootstrapWorker(
         ? isAbsolute(config.agentSqliteDir)
           ? config.agentSqliteDir
           : join(repoRoot, config.agentSqliteDir)
-        : join(repoRoot, '.synapse/agent-sqlite');
+        : join(repoRoot, 'tmp/dev/agent-sqlite');
 
     const store = createRuntimeStore(resources.pool);
     resources.connection = new IORedis(config.redisUrl, {
@@ -145,24 +141,26 @@ export async function bootstrapWorker(
       startQueueingStream({ store, queue: resources.queue, logger }),
       startRepairStream({ store, logger }),
     );
+    const observability = resources.observability!;
     resources.worker = new Worker(
       REACTOR_QUEUE_NAME,
-      async (job) => {
-        if (job.name !== REACTOR_JOB_NAME) {
-          throw new Error(`Unexpected BullMQ job name: ${job.name}`);
-        }
-        await executeRunFromJobData(job.data, {
+      async (job) =>
+        processReactorJob(job, {
           store,
-          registry,
-          pool: resources.pool,
-          agentSqlite: {
-            baseDir: agentSqliteBaseDir,
-            lockTimeoutMs: config.agentSqliteAdvisoryLockTimeoutMs,
-            migrationMaxMsPerMigration: config.agentSqliteMigrationMaxMs,
+          observability,
+          executeDeps: {
+            store,
+            registry,
+            pool: resources.pool,
+            repoRoot,
+            env: envWithLocal,
+            agentSqlite: {
+              baseDir: agentSqliteBaseDir,
+              lockTimeoutMs: config.agentSqliteAdvisoryLockTimeoutMs,
+              migrationMaxMsPerMigration: config.agentSqliteMigrationMaxMs,
+            },
           },
-          tracer: resources.observability!.tracer,
-        });
-      },
+        }),
       { connection: resources.connection.duplicate(), concurrency: 4 },
     );
 

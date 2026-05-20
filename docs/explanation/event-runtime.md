@@ -65,7 +65,7 @@ The runtime deliberately keeps the spine small:
 | Redis 7 | `apps/worker` | BullMQ backing store |
 | BullMQ | `runtime-worker` | Reactor queueing and execution dispatch |
 | OpenTelemetry + Jaeger | `runtime-observability`, local OTel collector | Spans, trace propagation, metrics, and local trace inspection |
-| Hono + Zod OpenAPI | `apps/webhooks` | HTTP webhook ingress |
+| Hono + Zod OpenAPI | `apps/ingress` | HTTP webhook ingress |
 | Vercel AI SDK | `runtime-llm` | Approved boundary for application LLM calls |
 
 ## How It Works

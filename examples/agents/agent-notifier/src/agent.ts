@@ -1,9 +1,9 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { EXAMPLE_AGENT_NOTIFIER } from 'runtime-events';
 
 export const NOTIFIER_AGENT_NAME = EXAMPLE_AGENT_NOTIFIER;
 
-export const notifierAgentDefinition = defineAgent({
+export const notifierAgentDefinition = defineRegistryAgent({
   name: NOTIFIER_AGENT_NAME,
   reactors: [
     defineReactor({

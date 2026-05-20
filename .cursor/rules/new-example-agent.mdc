@@ -12,21 +12,21 @@ For teaching and regression under `examples/agents/<name>/`. **Not** for product
 
 Same bar as application agents for local dev and CI:
 
-1. **Fixture file (when HTTP ingress exists)** — add `examples/fixtures/<agent>/…fixture.json` and list its path under `agents[].fixtures` in an example manifest (e.g. `manifests/examples/echo.json`). Use **`npm run dev -- --manifest manifests/examples/<name>.json`** then **`npm run dev:once -- --fixture example/<slug>`**.
-2. **Fixture mocks** when the agent uses external I/O (fixtures under `examples/fixtures/<name>/` or repo `fixtures/` only when shared).
+1. **Scenario (when HTTP ingress exists)** — add `scenarios/…/*.scenarios.json` with id `example/<slug>` and `manifests[]` including the example manifest `name` (e.g. `example-echo`). Use **`npm run dev -- --manifest manifests/examples/<name>.json`** then **`npm run dev:once -- --manifest manifests/examples/<name>.json --scenario example/<slug>`**.
+2. **`defineAgent`** + entry in **`apps/worker/src/shipped-agents.ts`**.
 3. **Unit tests** in `test/unit/`.
-4. **Integration tests** in `test/integration/*.e2e.test.ts` using `agent-test-harness` — these **run in the main suite** (`npx nx run-many -t test --all`), typically `describe.skipIf(!integrationInfraAvailable)`.
+4. **Integration tests** in `test/integration/*.e2e.test.ts` with **`shippedAgents`**, **`knownEventTypes`**, and `runDevOnce({ scenarioId })` — run in the main suite (`npx nx run-many -t test --all`), typically `describe.skipIf(!integrationInfraAvailable)`.
 
 ## Must not
 
 - Register in `manifests/application.json` or rely on default `npm run dev` without adding production agents.
-- Import from `apps/*` or queue/HTTP frameworks from agent packages.
+- Import from `apps/*`, `adapter-*/definition`, or queue/HTTP frameworks from agent packages.
 
 ## Must do
 
 - Package name: `example-agent-<name>`.
-- Add a manifest under `manifests/examples/` with `handler` under `examples/agents/…` and matching `handles`.
+- Manifest under `manifests/examples/` with `agents: [{ "name": "example-…" }]` only.
 - Document in `examples/agents/README.md` curriculum table.
-- Verify: `npx nx run example-agent-<name>:test`, and **`npm run dev:once -- --fixture example/<slug>`** after starting dev with the matching manifest.
+- Verify: `npx nx run example-agent-<name>:test`, and **`npm run dev:once -- --manifest manifests/examples/<name>.json --scenario example/<slug>`** after starting dev with the matching manifest.
 
-Reference: `examples/agents/agent-notifier/`.
+Reference: `examples/agents/example-agent-echo/`, `scenarios/echo.scenarios.json`.

@@ -3,15 +3,16 @@ title: Agents
 kind: reference
 owner: runtime-agent
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - agents/**
   - examples/agents/**
   - manifests/**
   - apps/worker/src/manifest-registry.ts
-  - apps/webhooks/**
+  - apps/worker/src/shipped-agents.ts
+  - apps/ingress/**
   - scripts/dev-once/**
-  - libs/synapse-fixtures/**
+  - scenarios/**
   - libs/agent-test-harness/**
   - libs/runtime-manifest/**
 ---
@@ -20,17 +21,17 @@ freshness_triggers:
 
 ## Scope
 
-Authoritative reference for Synapse **agent packages**: where they live, how **runtime manifests** register them, how **`npm run dev:once`** exercises HTTP ingress locally, how tests prove behavior, and how application vs example agents differ.
+Authoritative reference for Synapse **agent packages**: where they live, how **runtime manifests** mount them, how **`defineAgent`** and **`shipped-agents.ts`** register definitions, how **`npm run dev:once`** exercises scenarios locally, and how application vs example agents differ.
 
 **Manifest contracts (schemas, CLI, validation):** [Runtime manifest](runtime-manifest.md).
 
 ## Contract
 
-- Application agents live under `agents/agent-<name>/` and load when a manifest lists them (default: `manifests/application.json`).
-- Example agents live under `examples/agents/agent-<name>/` with package names `example-agent-<name>`; load them via a manifest under `manifests/examples/` (e.g. `manifests/examples/echo.json`).
-- **Subscriptions** (`handles`) live in manifest JSON only — not in handler TypeScript.
-- **Handlers** are default-exported async functions from paths declared in `agents[].handler`.
-- **Fixture contracts** are first-class: `*.fixture.json` under `fixtures/` or `examples/fixtures/`, listed on `agents[].fixtures`, validated by `synapseFixtureSchema`, and used by `npm run dev:once` / `runDevOnce` and e2e tests.
+- Application agents live under `agents/agent-<name>/` and load when a manifest lists `{ "name": "…" }` (default: `manifests/application.json`).
+- Example agents live under `examples/agents/agent-<name>/` with package names `example-agent-<name>`; load them via `manifests/examples/*.json`.
+- **Subscriptions** (`handles`) and **`usesAdapters`** live in **`defineAgent`** (`*-agent.definition.ts`), not in manifest JSON.
+- **Handlers** are default-exported functions wired through `run:` on the definition (usually `defineAgentHandler`).
+- **Run-loop proof** uses **`scenarios/*.scenarios.json`** listed on manifest `scenarios[]`; static payloads live under `fixtures/` or `examples/fixtures/`.
 - Workspace packages use **unscoped** npm names (`agent-reviewer`, not `@synapse/agent-reviewer`).
 
 ## Application vs example
@@ -41,9 +42,9 @@ Authoritative reference for Synapse **agent packages**: where they live, how **r
 | Package / Nx id | `agent-<name>` | `example-agent-<name>` |
 | Default `npm run dev` | **Yes** (`manifests/application.json`) | **No** |
 | Typical manifest | `manifests/application.json` | `manifests/examples/<name>.json` |
-| Handler path prefix | `agents/…` | `examples/agents/…` |
-| Fixture files | `fixtures/<agent-name>/*.fixture.json` | `examples/fixtures/<package>/*.fixture.json` |
-| Fixture CLI | `npm run dev:once -- --fixture <id>` (after `npm run dev`) | Same — start dev with example manifest first |
+| Definition + handler | `src/*-agent.definition.ts`, `src/*-agent.ts` | Same under `examples/agents/` |
+| Scenario ids | e.g. `review-pr/gitlab-synapse` | e.g. `example/echo` |
+| Static payloads | `fixtures/<agent-name>/` | `examples/fixtures/<package>/` |
 
 ## Naming
 
@@ -51,97 +52,111 @@ Authoritative reference for Synapse **agent packages**: where they live, how **r
 | --- | --- |
 | Manifest / runtime agent name | `agent-reviewer`, `example-echo` |
 | npm package name | `agent-reviewer`, `example-agent-echo` |
-| Application webhook fixture id | `review-pr/gitlab-synapse` |
-| Example webhook fixture id | `example/echo` |
-| Application fixtures (static) | `fixtures/agent-reviewer/` |
-| Example fixtures (static) | `examples/fixtures/example-agent-echo/` |
+| Scenario id | `review-pr/gitlab-synapse`, `example/echo` |
+| Application payloads | `fixtures/agent-reviewer/` |
+| Example payloads | `examples/fixtures/example-agent-echo/` |
 
-## Worker registration (manifest)
+## Worker registration
 
 ```text
-manifests/application.json  (or SYNAPSE_RUNTIME_MANIFEST / --manifest)
-  agents[].name, handler, handles[]
-        │
-        ▼
+*-agent.definition.ts
+  defineAgent({ name, handles, usesAdapters?, run })
+
+apps/worker/src/shipped-agents.ts
+  shippedAgentsByName
+
+manifests/application.json
+  agents: [{ "name": "agent-reviewer" }]
+
 apps/worker/src/manifest-registry.ts
-  loadValidatedManifestRegistry → wrapManifestRuntimeRegistry
-        │
-        ▼
+  loadValidatedManifestRegistry({ shippedAgents, knownEventTypes, … })
+
 runtime-worker planning
   findAgentsForEvent(event.type) → ensureAgentRun(agent, reactor: "handler")
         │
         ▼
-executeRun → default export handler(ctx, event)
+executeRun → definition.run(ctx, event)
 ```
 
-There are **no** `registered-application-agents.ts` or `registered-example-agents.ts` files. Do not use `defineAgent` / `defineReactor` for new agents.
-
-## Package anatomy
-
-```text
-agents/agent-<name>/          # or examples/agents/agent-<name>/
-  src/<feature>-agent.ts      # default export: defineAgentHandler(schema, fn)
-  src/ingress.ts              # optional: ctx.emit for signals / webhook helpers
-  src/index.ts                # public exports (ingress, types, setXClient hooks)
-  test/unit/
-  test/integration/*.e2e.test.ts   # prefer manifestPath in runAgentE2e
-```
-
-**`agent-reviewer` exemplar:** `src/review-pr-agent.ts` (handler), `src/ingress.ts` (GitLab → `pr.received.v1`), no `agent.ts` / `reactor.ts`.
-
-Ingress emits the first signal; the worker runs the handler when an event type appears in manifest `handles`.
+There are **no** `registered-application-agents.ts` files. **Shipped** agents use **`defineAgent`** + **`shipped-agents.ts`**. Example curriculum packages may still use **`defineRegistryAgent`** / **`defineReactor`** in isolated tests only — not for new product agents.
 
 ## Details
 
-### Fixture contracts (first-class)
+### Package anatomy
 
-Fixtures are **named, versioned contracts** for proving an agent journey—not ad-hoc test blobs. A complete HTTP-shaped contract has three linked pieces:
+```text
+agents/agent-<name>/          # or examples/agents/agent-<name>/
+  src/<feature>-agent.definition.ts   # defineAgent + run: handler
+  src/<feature>-agent.ts              # default export: defineAgentHandler(schema, fn)
+  src/definition.ts                   # re-export for shipped-agents.ts
+  src/ingress.ts                      # optional: ctx.emit for signals / webhook helpers
+  src/index.ts
+  test/unit/
+  test/integration/*.e2e.test.ts
+```
 
-| Piece | Where | Contract |
-| --- | --- | --- |
-| **Fixture JSON** | `fixtures/<agent-name>/*.fixture.json` or `examples/fixtures/<package>/` | `synapseFixtureSchema`: `id`, `agent`, webhook `ingress`, optional `expect` |
-| **Payload file** | Path in `ingress.body.file` | Repo-root-relative JSON/Markdown |
-| **Manifest discovery** | `manifests/*.json` → `agents[].fixtures` | Repo-root-relative paths to fixture JSON files |
+**`agent-reviewer` exemplar:** `review-pr-agent.definition.ts`, `review-pr-agent.ts`, `ingress.ts` (GitLab → `pr.received.v1`).
 
-See `libs/synapse-fixtures`, [Fixture files](fixtures.md), and repo-root `fixtures/README.md`.
+Ingress emits the first signal; the worker runs the handler when an event type appears in the definition’s `handles`.
 
-### Run loop CLI
+### Scenarios and payloads
+
+A **scenario** is the run-loop contract (`libs/runtime-manifest` `scenarioFileSchema`):
+
+| Piece | Where |
+| --- | --- |
+| **Scenario file** | `scenarios/<owner>/*.scenarios.json`, path on manifest `scenarios[]` |
+| **Scenario `id`** | CLI: `npm run dev:once -- --scenario <id>` (`--fixture` alias) |
+| **Ingress** | `ingress.source` (webhook or poll catalog id) + `ingress.fixtures[]` |
+| **Adapter mocks** | Optional `adapters[]` on the scenario (FIFO on `apps/adapters` during `dev:once`) |
+| **Payload files** | Repo-root paths in `ingress.fixtures[].file` |
+
+See [Fixture files](fixtures.md) (payload and scenario layout), `scenarios/echo.scenarios.json`, `scenarios/agent-reviewer/review-pr-gitlab-synapse.scenarios.json`.
+
+#### Run loop CLI
 
 | Script | Role |
 | --- | --- |
-| `scripts/dev-once/cli.ts` | argv; rejects `--manifest`; reads `.synapse/dev-session.json` |
-| `libs/dev-once` | `runSynapseOnce` — ingress + wait + artifact |
+| `scripts/dev-once/cli.ts` | argv; `--manifest` override; defaults to `manifests/application.json` |
+| `libs/dev-once` | `runDevOnce({ scenarioId })` — ingress + wait + artifact |
 
-**Application fixtures** (with default dev session):
+**Application scenarios** (default dev session):
 
-| Fixture id | Agent (manifest name) |
+| Scenario id | Agent (manifest name) |
 | --- | --- |
 | `review-pr/gitlab-synapse` | `agent-reviewer` |
 
-**Example fixtures** (after `npm run dev -- --manifest manifests/examples/echo.json`):
+**Example scenarios** (after `npm run dev -- --manifest manifests/examples/echo.json`):
 
-| Fixture id | Agent (manifest name) |
+| Scenario id | Agent (manifest name) |
 | --- | --- |
 | `example/echo` | `example-echo` |
-| `example/notifier` | _(requires notifier in manifest — see curriculum)_ |
 
-## Testing layers
+### Testing layers
 
 | Layer | Tooling | Infra | Proves |
 | --- | --- | --- | --- |
 | Unit | `test/unit/` | None | Schemas, handler logic, ingress helpers |
-| Integration | `agent-test-harness` | Postgres + Redis | Manifest + handler path end-to-end |
-| Webhook fixtures | `npm run dev` + `npm run dev:once -- --fixture <id>` | Long-lived stack | HTTP ingress → worker → terminal events |
+| Integration | `agent-test-harness` | Postgres + Redis | Manifest + shipped definition end-to-end |
+| Scenarios | `npm run dev` + `npm run dev:once -- --scenario <id>` | Long-lived stack | HTTP ingress → worker → terminal events |
 
 **E2e with Synapse Run Loop:**
 
 ```ts
+import { eventRegistry } from 'runtime-events';
+import { shippedAgentsByName } from '../../../../../apps/worker/src/shipped-agents.js';
+
+const knownEventTypes = new Set(Object.keys(eventRegistry));
+
 await withTestDevServer(
-  { manifestPath: 'manifests/application.json' },
+  {
+    manifestPath: 'manifests/application.json',
+    shippedAgents: shippedAgentsByName,
+    knownEventTypes,
+  },
   async (dev) => {
-    setReviewPrPiClient(createPiReviewFixtureClient({ repoRoot, fixtureFile: '…' }));
     const artifact = await runDevOnce({
-      fixtureId: 'review-pr/gitlab-synapse',
+      scenarioId: 'review-pr/gitlab-synapse',
       env: dev.env,
     });
     expect(artifact.status).toBe('succeeded');
@@ -149,16 +164,18 @@ await withTestDevServer(
 );
 ```
 
+The harness **must** receive `shippedAgents` and `knownEventTypes` from the app composition root — it does not import agents by default.
+
 ## Examples
 
 ```bash
 # Application (default manifest)
 npm run dev
-npm run dev:once -- --fixture review-pr/gitlab-synapse
+npm run dev:once -- --scenario review-pr/gitlab-synapse
 
 # Example echo manifest
 npm run dev -- --manifest manifests/examples/echo.json
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario example/echo
 
 # Package tests
 npx nx run agent-reviewer:test
@@ -167,8 +184,8 @@ npx nx run example-agent-echo:test
 
 ## Related Pages
 
-- [Runtime manifest](runtime-manifest.md) — thorough manifest reference
-- [Runtime manifest (explanation)](../explanation/runtime-manifest.md) — why manifests exist
+- [Runtime manifest](runtime-manifest.md)
+- [Runtime manifest (explanation)](../explanation/runtime-manifest.md)
 - [Local agent development](../how-to/local-agent-development.md)
 - [Run and test agents](../how-to/run-and-test-agents.md)
 - [Create an application agent](../how-to/create-an-agent.md)

@@ -3,7 +3,7 @@ title: Synapse Documentation
 kind: reference
 owner: docs
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - docs/**
 ---
@@ -18,8 +18,8 @@ New contributors should follow this path:
 
 1. [Local runtime example (echo)](tutorials/local-runtime-example-echo.md) — `example/echo` with `manifests/examples/echo.json`
 2. Example agents curriculum (`examples/agents/README.md`) — steps 1–11
-3. [Runtime manifest](reference/runtime-manifest.md) — how agents are registered; fixtures as contracts (read early)
-4. [Local agent development](how-to/local-agent-development.md) — `npm run dev`, manifests, `dev:once` fixtures
+3. [Runtime manifest](reference/runtime-manifest.md) — thin manifests, shipped definitions, scenarios (read early)
+4. [Local agent development](how-to/local-agent-development.md) — `npm run dev`, manifests, `dev:once` scenarios
 5. [Run and test agents](how-to/run-and-test-agents.md)
 6. [Agent reference](reference/agents.md)
 7. [Create an application agent](how-to/create-an-agent.md) — when shipping product capability

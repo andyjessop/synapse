@@ -20,6 +20,10 @@ const runtimeHops: RuntimeHop[] = [
   'agent_sqlite.open',
   'agent.load_fixture',
   'adapter.request',
+  'webhook.request',
+  'ingress.request',
+  'poll.tick',
+  'poll.lock',
 ];
 
 describe('runtime span attributes', () => {
@@ -36,6 +40,10 @@ describe('runtime span attributes', () => {
       ['agent_sqlite.open', 'agent sqlite open'],
       ['agent.load_fixture', 'agent load fixture'],
       ['adapter.request', 'adapter request'],
+      ['webhook.request', 'webhook request'],
+      ['ingress.request', 'ingress request'],
+      ['poll.tick', 'poll tick'],
+      ['poll.lock', 'poll lock'],
     ]);
   });
 

@@ -1,15 +1,17 @@
 import * as p from '@clack/prompts';
-import { readDevSession } from 'dev-cli-shared';
-import { parseRuntimeManifestFile } from 'runtime-manifest';
+import { resolveDevOnceManifestPath } from 'dev-cli-shared';
 import { getRepoRoot } from 'runtime-config';
-import { listManifestFixtures } from 'synapse-fixtures';
+import { parseRuntimeManifestFile } from 'runtime-manifest';
+import { listScenariosForManifest } from 'synapse-scenarios';
 
 export type DevOnceCliMode = {
   list: boolean;
   json: boolean;
   help: boolean;
   noWait: boolean;
-  fixtureId?: string;
+  clean: boolean;
+  scenarioId?: string;
+  manifestPath?: string;
 };
 
 export function parseDevOnceArgv(argv: readonly string[]): DevOnceCliMode {
@@ -18,6 +20,7 @@ export function parseDevOnceArgv(argv: readonly string[]): DevOnceCliMode {
     json: false,
     help: false,
     noWait: false,
+    clean: false,
   };
   const positionals: string[] = [];
 
@@ -28,13 +31,21 @@ export function parseDevOnceArgv(argv: readonly string[]): DevOnceCliMode {
       continue;
     }
     if (arg === '--manifest') {
-      throw new Error(
-        'dev:once does not accept --manifest. Start the stack with: npm run dev -- --manifest <path>',
-      );
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith('-')) {
+        throw new Error('Expected --manifest <path>');
+      }
+      mode.manifestPath = next;
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--manifest=')) {
+      mode.manifestPath = arg.slice('--manifest='.length);
+      continue;
     }
     if (arg === '--examples') {
       throw new Error(
-        'dev:once does not accept --examples. Use npm run dev -- --manifest manifests/examples/echo.json',
+        'dev:once does not accept --examples. Use npm run dev:once -- --manifest manifests/examples/echo.json',
       );
     }
     if (arg === '--json') {
@@ -49,17 +60,25 @@ export function parseDevOnceArgv(argv: readonly string[]): DevOnceCliMode {
       mode.noWait = true;
       continue;
     }
-    if (arg === '--fixture') {
+    if (arg === '--clean') {
+      throw new Error(
+        'dev:once does not accept --clean. Use: npm run dev:once:clean [-- --scenario <id>]',
+      );
+    }
+    if (arg === '--scenario' || arg === '--fixture') {
       const next = argv[i + 1];
       if (next === undefined || next.startsWith('-')) {
-        throw new Error('Expected --fixture <id>');
+        throw new Error(`Expected ${arg} <id>`);
       }
-      mode.fixtureId = next;
+      mode.scenarioId = next;
       i += 1;
       continue;
     }
-    if (arg.startsWith('--fixture=')) {
-      mode.fixtureId = arg.slice('--fixture='.length);
+    if (arg.startsWith('--scenario=') || arg.startsWith('--fixture=')) {
+      const prefix = arg.startsWith('--scenario=')
+        ? '--scenario='
+        : '--fixture=';
+      mode.scenarioId = arg.slice(prefix.length);
       continue;
     }
     if (arg.startsWith('-')) {
@@ -69,75 +88,80 @@ export function parseDevOnceArgv(argv: readonly string[]): DevOnceCliMode {
   }
 
   if (positionals.length > 1) {
-    throw new Error('Expected at most one fixture id (positional argument).');
+    throw new Error('Expected at most one scenario id (positional argument).');
   }
-  if (positionals[0] !== undefined && mode.fixtureId === undefined) {
-    mode.fixtureId = positionals[0];
+  if (positionals[0] !== undefined && mode.scenarioId === undefined) {
+    mode.scenarioId = positionals[0];
+  }
+  if (process.env.SYNAPSE_DEV_ONCE_CLEAN === '1') {
+    mode.clean = true;
   }
   return mode;
 }
 
 export function printDevOnceHelp(): void {
   const lines = [
-    'Synapse Run Loop — send one fixture into the active dev session.',
+    'Synapse Run Loop — run one scenario against the local dev stack.',
     '',
-    'Prerequisites: npm run dev (writes .synapse/dev-session.json)',
+    'Prerequisites: npm run dev (stack running in another terminal).',
+    '',
+    'Manifest: defaults to manifests/application.json. Pass --manifest when',
+    'the stack was started with npm run dev -- --manifest <path>.',
     '',
     'Commands:',
-    '  npm run dev:once -- --fixture <id>   Run one manifest fixture',
-    '  npm run dev:once -- --list           List agents and fixtures',
-    '  npm run dev:once                     Interactive agent + fixture picker',
+    '  npm run dev:once -- --scenario <id>   Run one manifest scenario',
+    '  npm run dev:once -- --fixture <id>    Alias for --scenario',
+    '  npm run dev:once -- --list            List scenarios for the active manifest',
+    '  npm run dev:once                      Interactive scenario picker',
+    '  npm run dev:once:clean                Same, but wipe Postgres + reactor queue first',
+    '  npm run dev:once:clean -- --scenario <id>',
     '',
     'Flags:',
-    '  --list        List fixtures for the active dev session',
-    '  --json        Print SynapseRunArtifact JSON only',
-    '  --no-wait     Send ingress and exit without waiting for terminal state',
-    '  --help, -h    Show this help',
+    '  --manifest <path>  Manifest JSON (default: manifests/application.json)',
+    '  --list             List scenarios whose manifests[] includes the manifest name',
+    '  --json             Print SynapseRunArtifact JSON only',
+    '  --no-wait          Trigger ingress and exit without waiting for terminal state',
+    '  --help, -h         Show this help',
     '',
     'Examples:',
+    '  npm run dev',
+    '  npm run dev:once -- --scenario review-pr/gitlab-synapse',
     '  npm run dev -- --manifest manifests/examples/echo.json',
-    '  npm run dev:once -- --fixture example/echo',
-    '  npm run dev:once -- --fixture review-pr/gitlab-synapse',
+    '  npm run dev:once -- --manifest manifests/examples/echo.json --scenario example/echo',
+    '  npm run dev:once:clean -- --scenario review-pr/gitlab-synapse',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-export function loadSessionManifest(metaUrl: string | URL) {
+export function loadActiveDevManifest(
+  metaUrl: string | URL,
+  manifestPathOverride?: string,
+) {
   const repoRoot = getRepoRoot(metaUrl);
-  const session = readDevSession(repoRoot);
-  const manifest = parseRuntimeManifestFile(session.manifest_path);
-  return { repoRoot, session, manifest };
+  const manifestPath = resolveDevOnceManifestPath(
+    repoRoot,
+    manifestPathOverride,
+  );
+  const manifest = parseRuntimeManifestFile(manifestPath);
+  return { repoRoot, manifestPath, manifest };
 }
 
-export async function promptFixtureSelection(
-  entries: ReturnType<typeof listManifestFixtures>,
-): Promise<{ fixtureId: string } | symbol> {
+export async function promptScenarioSelection(
+  entries: ReturnType<typeof listScenariosForManifest>,
+): Promise<{ scenarioId: string } | symbol> {
   if (entries.length === 0) {
-    return p.cancel('No fixtures in this manifest.');
+    return p.cancel('No scenarios in this manifest.');
   }
 
-  const agents = [...new Set(entries.map((e) => e.agent))];
-  const agent =
-    agents.length === 1
-      ? agents[0]
-      : await p.select({
-          message: 'Select agent',
-          options: agents.map((name) => ({ value: name, label: name })),
-        });
-  if (p.isCancel(agent)) {
-    return agent;
-  }
-
-  const forAgent = entries.filter((e) => e.agent === agent);
-  const fixtureId = await p.select({
-    message: 'Select fixture',
-    options: forAgent.map((e) => ({
+  const scenarioId = await p.select({
+    message: 'Select scenario',
+    options: entries.map((e) => ({
       value: e.id,
       label: `${e.id}  ${e.title}`,
     })),
   });
-  if (p.isCancel(fixtureId)) {
-    return fixtureId;
+  if (p.isCancel(scenarioId)) {
+    return scenarioId;
   }
-  return { fixtureId };
+  return { scenarioId };
 }

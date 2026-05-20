@@ -150,6 +150,16 @@ describe('formatRunRecordFlow', () => {
     expect(output).toContain('no downstream events recorded');
   });
 
+  it('accepts SynapseRunArtifact shape with rootEvent instead of inputEventId', () => {
+    const output = formatRunRecordFlow({
+      rootEvent: reviewPrRecord.events[0],
+      events: reviewPrRecord.events,
+      agentRuns: reviewPrRecord.agentRuns,
+    });
+    expect(output).not.toContain('input event missing from record');
+    expect(output).toContain('pr.received.v1');
+  });
+
   it('orders pi tool-call siblings by timeline_order when createdAt ties', () => {
     const output = formatRunRecordFlow({
       ...reviewPrRecord,
@@ -167,6 +177,8 @@ describe('formatRunRecordFlow', () => {
             tool_call_id: 'tc-1',
             tool_name: 'read',
             is_error: false,
+            args: { summary: 'read README.md' },
+            result_summary: 'read 10 lines',
             input_event_id: 'evt_input',
             review_subject: 'gitlab:group/project!1',
             timeline_order: 1,

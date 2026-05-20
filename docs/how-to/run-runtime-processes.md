@@ -8,7 +8,7 @@ freshness_triggers:
   - scripts/dev.ts
   - manifests/**
   - apps/worker/**
-  - apps/webhooks/**
+  - apps/ingress/**
 ---
 
 # Run runtime processes
@@ -35,7 +35,7 @@ Startup prints `synapse manifest:` with the loaded JSON path (default `manifests
 2. Optional — verify the durable runtime loop for **examples** (first terminal: **`npm run dev:example`**, second terminal):
 
 ```bash
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario example/echo
 ```
 
 ### Partial stacks
@@ -46,13 +46,13 @@ npm run dev:once -- --fixture example/echo
 | `npx nx run worker:start` | You only need a worker (after infra is up); set `SYNAPSE_RUNTIME_MANIFEST` if not using default |
 | `npm run dev -- --manifest <path>` | Application or example agent set from JSON |
 
-`npm run dev` starts **webhooks** whenever it starts the **worker** (same terminal, prefixed logs). Webhook routes follow manifest `webhooks.routes` (stable ids; see `apps/webhooks/README.md`).
+`npm run dev` starts **ingress** (webhooks + poll supervisors) whenever it starts the **worker** (same terminal, prefixed logs). Routes and poll sources follow manifest `webhooks.routes` / `pollers.sources` (see `apps/ingress/README.md`).
 
 ## Verify
 
-- Startup banner lists Postgres, Redis, Jaeger, the worker, webhooks (`http://127.0.0.1:3102`), and manifest path.
+- Startup banner lists Postgres, Redis, Jaeger, the worker, ingress (`http://127.0.0.1:3102`), and manifest path.
 - Worker logs show ready/degraded lifecycle without crash loops.
-- With **`npm run dev:example`** running, `npm run dev:once -- --fixture example/echo` exits 0 when healthy.
+- With **`npm run dev:example`** running, `npm run dev:once -- --scenario example/echo` exits 0 when healthy.
 
 ## Troubleshooting
 

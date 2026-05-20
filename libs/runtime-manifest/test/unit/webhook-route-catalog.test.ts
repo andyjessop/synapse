@@ -14,13 +14,7 @@ describe('webhook route catalog', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
       name: 'no-webhooks',
-      agents: [
-        {
-          name: 'a',
-          handler: 'examples/agents/example-agent-echo/src/echo-agent.ts',
-          handles: ['example.ping.v1'],
-        },
-      ],
+      agents: [{ name: 'example-echo' }],
     });
     expect(resolveManifestWebhookRouteIds(manifest)).toEqual(
       DEFAULT_WEBHOOK_ROUTE_IDS,
@@ -31,32 +25,28 @@ describe('webhook route catalog', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
       name: 'examples',
-      agents: [
-        {
-          name: 'a',
-          handler: 'examples/agents/example-agent-echo/src/echo-agent.ts',
-          handles: ['example.ping.v1'],
-        },
-      ],
-      webhooks: { routes: EXAMPLES_WEBHOOK_ROUTE_IDS },
+      agents: [{ name: 'example-echo' }],
+      webhooks: EXAMPLES_WEBHOOK_ROUTE_IDS.map((source) => ({ source })),
     });
     expect(resolveManifestWebhookRouteIds(manifest)).toEqual(
       EXAMPLES_WEBHOOK_ROUTE_IDS,
     );
   });
 
+  it('declares GitLab default headers for prs webhook (dev:once)', () => {
+    expect(
+      WEBHOOK_ROUTE_CATALOG['synapse.webhooks.prs.v1'].defaultHeaders,
+    ).toEqual({
+      'X-Gitlab-Event': 'Merge Request Hook',
+    });
+  });
+
   it('matches fixture ingress to mounted catalog paths', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
       name: 'app',
-      agents: [
-        {
-          name: 'a',
-          handler: 'examples/agents/example-agent-echo/src/echo-agent.ts',
-          handles: ['pr.received.v1'],
-        },
-      ],
-      webhooks: { routes: ['synapse.webhooks.prs.v1'] },
+      agents: [{ name: 'agent-reviewer' }],
+      webhooks: [{ source: 'synapse.webhooks.prs.v1' }],
     });
     expect(
       fixtureIngressIsMounted(

@@ -1,13 +1,10 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
   ADAPTER_FIXTURE_SCHEMA_PATHS,
-  adapterFixtureMatchSatisfies,
   assertFixtureSchemaFileExists,
-  findAdapterFixtureMatch,
   loadAdapterFixtureFile,
   parseAdapterFixtureJson,
   WEBHOOK_FIXTURE_SCHEMA_PATHS,
@@ -15,50 +12,15 @@ import {
 
 const repoRoot = join(fileURLToPath(new URL('../../../..', import.meta.url)));
 
-describe('adapter fixture schemas', () => {
-  it('parses shipped gitlab and pi adapter fixtures', () => {
-    const gitlab = loadAdapterFixtureFile(
-      repoRoot,
-      'fixtures/agent-reviewer/adapters/gitlab-fetch-changes-synapse.json',
-    );
-    expect(gitlab.schema).toBe(
-      ADAPTER_FIXTURE_SCHEMA_PATHS.GITLAB_FETCH_CHANGES,
-    );
-    expect(gitlab.adapter).toBe('gitlab');
-    expect(gitlab.method).toBe('fetchChanges');
-    assertFixtureSchemaFileExists(repoRoot, gitlab.schema);
-
+describe('adapter fixture schemas (runtime-manifest)', () => {
+  it('parses shipped pi adapter fixture', () => {
     const pi = loadAdapterFixtureFile(
       repoRoot,
       'fixtures/agent-reviewer/adapters/pi-review-synapse.json',
     );
     expect(pi.schema).toBe(ADAPTER_FIXTURE_SCHEMA_PATHS.PI_REVIEW);
     expect(pi.response.markdown).toContain('## Summary');
-  });
-
-  it('matches fetchChanges by request fields', () => {
-    const gitlab = loadAdapterFixtureFile(
-      repoRoot,
-      'fixtures/agent-reviewer/adapters/gitlab-fetch-changes-synapse.json',
-    );
-    expect(
-      adapterFixtureMatchSatisfies(gitlab.match, {
-        projectId: 202,
-        mergeRequestIid: 42,
-      }),
-    ).toBe(true);
-    expect(
-      adapterFixtureMatchSatisfies(gitlab.match, {
-        projectId: 999,
-        mergeRequestIid: 42,
-      }),
-    ).toBe(false);
-    expect(
-      findAdapterFixtureMatch([gitlab], {
-        projectId: 202,
-        mergeRequestIid: 42,
-      }),
-    ).toBe(gitlab);
+    assertFixtureSchemaFileExists(repoRoot, pi.schema);
   });
 
   it('rejects legacy schema id strings', () => {
@@ -87,17 +49,10 @@ describe('adapter fixture schemas', () => {
     ).toThrow(/Unknown fixture schema path/);
   });
 
-  it('requires webhook run-loop schema path on fixture files', () => {
-    const raw = JSON.parse(
-      readFileSync(
-        join(
-          repoRoot,
-          'fixtures/agent-reviewer/review-pr-gitlab-synapse.fixture.json',
-        ),
-        'utf8',
-      ),
-    ) as { schema: string };
-    expect(raw.schema).toBe(WEBHOOK_FIXTURE_SCHEMA_PATHS.RUN_LOOP);
-    assertFixtureSchemaFileExists(repoRoot, raw.schema);
+  it('does not register gitlab fixture schema paths', () => {
+    expect(WEBHOOK_FIXTURE_SCHEMA_PATHS.RUN_LOOP).toContain(
+      'libs/runtime-manifest/schemas/',
+    );
+    expect('GITLAB_FETCH_CHANGES' in ADAPTER_FIXTURE_SCHEMA_PATHS).toBe(false);
   });
 });

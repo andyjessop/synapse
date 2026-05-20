@@ -1,4 +1,4 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { describe, expect, it } from 'vitest';
 import { createRuntimeRegistry } from '../../src/registry';
 
@@ -10,7 +10,7 @@ describe('createRuntimeRegistry', () => {
       handler: async () => {},
     });
     const registry = createRuntimeRegistry([
-      defineAgent({ name: 'example-echo', reactors: [reactor] }),
+      defineRegistryAgent({ name: 'example-echo', reactors: [reactor] }),
     ]);
 
     const matched = registry.matchReactors('example.ping.v1');
@@ -30,20 +30,20 @@ describe('createRuntimeRegistry', () => {
 
     expect(() =>
       createRuntimeRegistry([
-        defineAgent({ name: 'dup', reactors: [reactor] }),
-        defineAgent({ name: 'dup', reactors: [reactor] }),
+        defineRegistryAgent({ name: 'dup', reactors: [reactor] }),
+        defineRegistryAgent({ name: 'dup', reactors: [reactor] }),
       ]),
     ).toThrow(/Duplicate agent/);
 
     expect(() =>
       createRuntimeRegistry([
-        defineAgent({ name: 'agent', reactors: [reactor, reactor] }),
+        defineRegistryAgent({ name: 'agent', reactors: [reactor, reactor] }),
       ]),
     ).toThrow(/Duplicate reactor/);
 
     expect(() =>
       createRuntimeRegistry([
-        defineAgent({
+        defineRegistryAgent({
           name: 'agent',
           reactors: [
             defineReactor({
@@ -60,7 +60,7 @@ describe('createRuntimeRegistry', () => {
   it('rejects agent names outside the SQLite slug charset', () => {
     expect(() =>
       createRuntimeRegistry([
-        defineAgent({
+        defineRegistryAgent({
           name: 'Invalid_Case',
           reactors: [
             defineReactor({

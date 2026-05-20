@@ -13,14 +13,13 @@ describe('runtime-store migrations ledger', () => {
       '003_agent_runs_failure_detail',
       '005_drop_obsolete_runtime_tables',
       '006_normalize_legacy_payload_pointers',
+      '007_events_traceparent',
     ]);
-    expect(LAST_RUNTIME_STORE_MIGRATION_ID).toBe(
-      '006_normalize_legacy_payload_pointers',
-    );
+    expect(LAST_RUNTIME_STORE_MIGRATION_ID).toBe('007_events_traceparent');
   });
 
   it('exposes packaged ledger migration bodies for tooling', () => {
-    expect(__testingLedgerMigrations()).toHaveLength(4);
+    expect(__testingLedgerMigrations()).toHaveLength(5);
     expect(__testingLedgerMigrations()[0]!.id).toBe('001_streams_runtime');
     expect(__testingLedgerMigrations()[0]!.sql).toContain('events');
     expect(__testingLedgerMigrations()[0]!.sql).toContain('event_outbox');
@@ -40,6 +39,8 @@ describe('runtime-store migrations ledger', () => {
     expect(__testingLedgerMigrations()[3]!.sql).toContain(
       '__synapse_event_payload_file_v1',
     );
+    expect(__testingLedgerMigrations()[4]!.id).toBe('007_events_traceparent');
+    expect(__testingLedgerMigrations()[4]!.sql).toContain('traceparent');
   });
 
   it('validates known migration ids', () => {
@@ -55,6 +56,9 @@ describe('runtime-store migrations ledger', () => {
     expect(
       assertKnownMigrationId('006_normalize_legacy_payload_pointers'),
     ).toBe('006_normalize_legacy_payload_pointers');
+    expect(assertKnownMigrationId('007_events_traceparent')).toBe(
+      '007_events_traceparent',
+    );
     expect(() => assertKnownMigrationId('001_runtime_store')).toThrow(
       /Unknown runtime-store migration id/,
     );

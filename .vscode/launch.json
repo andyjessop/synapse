@@ -2,56 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "dev:once (tsx)",
+      "name": "dev (worker inspect)",
       "type": "node",
-      "request": "launch",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["--import", "tsx"],
-      "program": "${workspaceFolder}/scripts/dev-once.ts",
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
+      "request": "attach",
+      "port": 9230,
+      "restart": true,
+      "timeout": 120000,
+      "preLaunchTask": "synapse-dev-worker-inspect",
       "skipFiles": ["<node_internals>/**"],
       "resolveSourceMapLocations": [
         "${workspaceFolder}/**",
         "!**/node_modules/**"
       ]
-    },
-    {
-      "name": "dev:once: fixture id",
-      "type": "node",
-      "request": "launch",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["--import", "tsx"],
-      "program": "${workspaceFolder}/scripts/dev-once.ts",
-      "args": ["--fixture", "${input:devOnceFixtureId}"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/**",
-        "!**/node_modules/**"
-      ]
-    },
-    {
-      "name": "Vitest: dev-cli-shared (current file)",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
-      "args": ["run", "${file}", "--config", "vitest.config.ts"],
-      "cwd": "${workspaceFolder}/libs/dev-cli-shared",
-      "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/**",
-        "!**/node_modules/**"
-      ]
-    }
-  ],
-  "inputs": [
-    {
-      "id": "devOnceFixtureId",
-      "type": "promptString",
-      "description": "Fixture id (npm run dev:once -- --list; start npm run dev with the right manifest first)"
     }
   ]
 }

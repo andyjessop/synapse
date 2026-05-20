@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "synapse-dev-worker-inspect",
+      "type": "shell",
+      "command": "node --import tsx scripts/dev.ts",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "SYNAPSE_DEV_DEBUG_WORKER": "1"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "synapse-dev",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\[worker\\]",
+          "endsPattern": "\\[worker\\] Debugger listening on ws://127\\.0\\.0\\.1:9230"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

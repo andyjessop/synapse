@@ -22,7 +22,7 @@ Correlate OpenTelemetry traces, Jaeger UI, and runtime capture roots for one run
 
 ## Steps
 
-1. Run **`npm run dev`** (or **`npm run dev:example`** / **`npm run dev -- --manifest …`**) plus **`npm run dev:once -- --fixture <id>`** and copy `jaeger_trace_url` from output when printed.
+1. Run **`npm run dev`** (or **`npm run dev:example`** / **`npm run dev -- --manifest …`**) plus **`npm run dev:once -- --scenario <id>`** and open the `jaeger:` line from output when printed (direct `/trace/{traceId}` link).
 
 2. Open Jaeger (default UI `http://127.0.0.1:26686`) and inspect spans: `ingress emit`, `event append`, `bullmq process`, handler run, etc.
 

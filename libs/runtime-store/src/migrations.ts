@@ -30,6 +30,7 @@ const LEDGER_MIGRATION_FILES = [
     '006_normalize_legacy_payload_pointers',
     '006_normalize_legacy_payload_pointers.sql',
   ],
+  ['007_events_traceparent', '007_events_traceparent.sql'],
 ] as const;
 
 export type LedgerMigrationId = (typeof LEDGER_MIGRATION_FILES)[number][0];

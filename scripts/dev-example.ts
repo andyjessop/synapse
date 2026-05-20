@@ -1,10 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  createDevRuntimePlan,
-  startDevRuntime,
-} from './dev.js';
+import { createDevRuntimePlan, startDevRuntime } from './dev.js';
 
 const isMain =
   process.argv[1] !== undefined &&

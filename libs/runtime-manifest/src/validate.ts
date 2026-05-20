@@ -1,22 +1,15 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { type AgentHandler } from 'runtime-agent';
+import type { AgentDefinition } from 'runtime-agent';
 import {
-  assertRepoRelativeFixturePath,
-  collectAgentWebhookFixturePaths,
-  validateManifestFixtureEntries,
-} from 'synapse-fixtures';
-
-import {
-  assertHandlerPathAllowlisted,
-  resolveHandlerAbsolutePath,
-  warnIfManifestOutsideRepo,
-} from './handler-path.js';
-import {
-  collectAgentAdapterFixturePaths,
-  loadAdapterFixtureFile,
-} from './load-adapter-fixtures.js';
+  listScenarioPathsForManifest,
+  scenariosForManifest,
+} from './list-manifest-scenarios.js';
+import { warnIfManifestOutsideRepo } from './manifest-path.js';
 import type { RuntimeManifest } from './manifest-schema.js';
+import { assertRepoRelativePath } from './repo-relative-path.js';
+import type { Scenario } from './scenario-schema.js';
+import { parseScenarioFileJson } from './scenario-schema.js';
 
 export const MANIFEST_HANDLER_REACTOR_NAME = 'handler' as const;
 
@@ -26,29 +19,48 @@ export type ValidatedRuntimeManifest = RuntimeManifest & {
   manifestPath: string;
 };
 
-export function validateManifestAdapterFixtureEntries(
-  manifest: RuntimeManifest,
-  deps: { repoRoot: string },
-): void {
-  for (const agent of manifest.agents) {
-    if (agent.name === AGENT_REVIEWER_MANIFEST_AGENT_NAME) {
-      const adapterPaths = collectAgentAdapterFixturePaths(agent);
-      if (adapterPaths.length === 0) {
-        throw new Error(
-          `Manifest agent ${AGENT_REVIEWER_MANIFEST_AGENT_NAME} requires fixtures.adapter with at least one adapter fixture path`,
-        );
-      }
+function assertUniqueManifestListEntries(manifest: RuntimeManifest): void {
+  const seenWebhookSources = new Set<string>();
+  for (const entry of manifest.webhooks ?? []) {
+    if (seenWebhookSources.has(entry.source)) {
+      throw new Error(`Duplicate webhook source in manifest: ${entry.source}`);
     }
+    seenWebhookSources.add(entry.source);
+  }
+}
 
-    for (const path of collectAgentAdapterFixturePaths(agent)) {
-      assertRepoRelativeFixturePath(path);
-      const abs = join(deps.repoRoot, path);
-      if (!existsSync(abs)) {
+function validateManifestScenarios(
+  manifest: RuntimeManifest,
+  deps: {
+    repoRoot: string;
+    validateScenarioForManifest?: (
+      scenario: Scenario,
+      manifest: RuntimeManifest,
+    ) => void;
+  },
+): void {
+  const seenScenarioIds = new Set<string>();
+  for (const scenarioPath of listScenarioPathsForManifest(
+    deps.repoRoot,
+    manifest,
+  )) {
+    assertRepoRelativePath(scenarioPath);
+    const abs = join(deps.repoRoot, scenarioPath);
+    if (!existsSync(abs)) {
+      throw new Error(
+        `Scenario file not found for manifest ${manifest.name}: ${scenarioPath}`,
+      );
+    }
+    const raw = JSON.parse(readFileSync(abs, 'utf8')) as unknown;
+    const file = parseScenarioFileJson(raw);
+    for (const scenario of scenariosForManifest(file, manifest.name)) {
+      if (seenScenarioIds.has(scenario.id)) {
         throw new Error(
-          `Adapter fixture file not found for ${agent.name}: ${path}`,
+          `Duplicate scenario id for manifest ${manifest.name}: ${scenario.id}`,
         );
       }
-      loadAdapterFixtureFile(deps.repoRoot, path);
+      seenScenarioIds.add(scenario.id);
+      deps.validateScenarioForManifest?.(scenario, manifest);
     }
   }
 }
@@ -59,7 +71,11 @@ export function validateRuntimeManifest(
     manifestPath: string;
     repoRoot: string;
     knownEventTypes: ReadonlySet<string>;
-    resolveHandler: (handlerPath: string) => AgentHandler;
+    shippedAgents: ReadonlyMap<string, AgentDefinition>;
+    validateScenarioForManifest?: (
+      scenario: Scenario,
+      manifest: RuntimeManifest,
+    ) => void;
   },
 ): ValidatedRuntimeManifest {
   const outsideWarning = warnIfManifestOutsideRepo(
@@ -71,41 +87,41 @@ export function validateRuntimeManifest(
   }
 
   const agentNames = new Set<string>();
-  for (const agent of manifest.agents) {
-    if (agentNames.has(agent.name)) {
-      throw new Error(`Duplicate manifest agent name: ${agent.name}`);
+  for (const entry of manifest.agents) {
+    if (agentNames.has(entry.name)) {
+      throw new Error(`Duplicate manifest agent name: ${entry.name}`);
     }
-    agentNames.add(agent.name);
+    agentNames.add(entry.name);
 
-    for (const eventType of agent.handles) {
+    const agentDef = deps.shippedAgents.get(entry.name);
+    if (agentDef === undefined) {
+      throw new Error(
+        `Manifest mounts unknown agent: ${entry.name}. Register it in the worker shipped agent list.`,
+      );
+    }
+
+    for (const eventType of agentDef.handles) {
       if (!deps.knownEventTypes.has(eventType)) {
         throw new Error(
-          `Unknown event type in manifest handles for ${agent.name}: ${eventType}`,
+          `Agent ${agentDef.name} handles unknown event type: ${eventType}`,
         );
       }
     }
 
-    assertHandlerPathAllowlisted(agent.handler);
-    const absHandler = resolveHandlerAbsolutePath(deps.repoRoot, agent.handler);
-    if (!existsSync(absHandler)) {
-      throw new Error(`Manifest handler file not found: ${agent.handler}`);
-    }
-    deps.resolveHandler(agent.handler);
-
-    for (const path of collectAgentWebhookFixturePaths(agent, deps.repoRoot)) {
-      assertRepoRelativeFixturePath(path);
-    }
-    for (const path of collectAgentAdapterFixturePaths(agent)) {
-      assertRepoRelativeFixturePath(path);
+    for (const source of agentDef.usesAdapters ?? []) {
+      if (!manifest.adapters?.some((a) => a.source === source)) {
+        throw new Error(
+          `Agent ${agentDef.name} uses adapter ${source} but manifest does not mount it`,
+        );
+      }
     }
   }
 
-  validateManifestFixtureEntries(manifest, {
+  assertUniqueManifestListEntries(manifest);
+  validateManifestScenarios(manifest, {
     repoRoot: deps.repoRoot,
-    knownEventTypes: deps.knownEventTypes,
+    validateScenarioForManifest: deps.validateScenarioForManifest,
   });
-
-  validateManifestAdapterFixtureEntries(manifest, { repoRoot: deps.repoRoot });
 
   return { ...manifest, manifestPath: deps.manifestPath };
 }

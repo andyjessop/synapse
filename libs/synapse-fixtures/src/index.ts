@@ -1,8 +1,13 @@
-export { WEBHOOK_FIXTURE_SCHEMA_PATHS } from 'runtime-manifest';
+export {
+  POLL_FIXTURE_SCHEMA_PATHS,
+  WEBHOOK_FIXTURE_SCHEMA_PATHS,
+} from 'runtime-manifest';
 export {
   agentFixtureSearchDir,
   collectAgentFixturePaths,
+  collectAgentPollFixturePaths,
   collectAgentWebhookFixturePaths,
+  collectLegacyWebhookFixturePathsOnDisk,
   discoverFixturePathsInDir,
 } from './discover-agent-fixtures.js';
 export {
@@ -10,8 +15,14 @@ export {
   resolveFixtureAbsolutePath,
 } from './fixture-path.js';
 export {
+  isPollRunLoopFixture,
+  isWebhookRunLoopFixture,
   type SynapseFixture,
   type SynapseFixtureIngress,
+  type SynapsePollFixtureIngress,
+  type SynapsePollRunLoopFixture,
+  type SynapseWebhookFixtureIngress,
+  type SynapseWebhookRunLoopFixture,
   synapseFixtureExpectSchema,
   synapseFixtureIngressSchema,
   synapseFixtureSchema,
@@ -24,6 +35,7 @@ export {
 export {
   parseSynapseFixtureFile,
   parseSynapseFixtureJson,
+  readPollInjectCandidates,
   readWebhookBodyBytes,
 } from './parse.js';
 export {

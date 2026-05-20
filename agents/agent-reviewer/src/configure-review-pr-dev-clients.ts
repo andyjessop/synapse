@@ -1,17 +1,15 @@
-import type { GitLabMergeRequestClient } from 'adapter-gitlab';
 import {
   createPiReviewMockClient,
   createPiReviewProcessClient,
   createPiReviewSdkClient,
 } from 'pi-harness';
-
+import { getRepoRoot } from 'runtime-config';
+import type { GitLabMergeRequestClient } from './gitlab-merge-request-client.js';
+import { loadPiHarnessFixture } from './load-pi-harness-fixture.js';
 import type { PiReviewClient } from './pi-review-client.js';
 import {
-  createReviewPrGitLabClient,
   formatReviewPrDevStartupLine,
-  loadReviewPrManifestAgent,
   parseReviewPrPiMode,
-  piReviewAdapterFixtureRules,
 } from './review-pr-manifest.js';
 import {
   isReviewPrPiClientConfigured,
@@ -21,36 +19,53 @@ import {
 export {
   AGENT_REVIEWER_MANIFEST_NAME,
   formatReviewPrDevStartupLine,
-  loadReviewPrManifestAgent,
   parseReviewPrPiMode,
   type ReviewPrPiMode,
 } from './review-pr-manifest.js';
 
-export function resolveReviewPrDevClients(
-  env: Record<string, string | undefined>,
-  metaUrl: string | URL,
-): { pi: PiReviewClient; gitlab: GitLabMergeRequestClient } {
-  const { repoRoot, adapterFixtures } = loadReviewPrManifestAgent(env, metaUrl);
-  const gitlab = createReviewPrGitLabClient(adapterFixtures);
-  const mode = parseReviewPrPiMode(env);
-  let pi: PiReviewClient;
+const DEFAULT_PI_FIXTURE_PATH =
+  'fixtures/agent-reviewer/pi-harness/pi-review-synapse.json';
+
+export function resolveReviewPrPiClient(input: {
+  repoRoot: string;
+  env: Record<string, string | undefined>;
+  gitlab: GitLabMergeRequestClient;
+  piFixturePath?: string;
+}): PiReviewClient {
+  const mode = parseReviewPrPiMode(input.env);
   if (mode === 'live') {
-    pi = createPiReviewSdkClient({ repoRoot, env, gitlab });
-  } else if (mode === 'process') {
-    pi = createPiReviewProcessClient({ repoRoot, env });
-  } else {
-    const piRules = piReviewAdapterFixtureRules(adapterFixtures);
-    pi = createPiReviewMockClient({ repoRoot, rules: piRules });
+    return createPiReviewSdkClient({
+      repoRoot: input.repoRoot,
+      env: input.env,
+      gitlab: input.gitlab,
+    });
   }
-  return { pi, gitlab };
+  if (mode === 'process') {
+    return createPiReviewProcessClient({
+      repoRoot: input.repoRoot,
+      env: input.env,
+    });
+  }
+  const fixture = loadPiHarnessFixture(
+    input.repoRoot,
+    input.piFixturePath ?? DEFAULT_PI_FIXTURE_PATH,
+  );
+  return createPiReviewMockClient({
+    repoRoot: input.repoRoot,
+    markdown: fixture.markdown,
+  });
 }
 
 export function configureReviewPrDevClients(
   env: Record<string, string | undefined> = process.env,
   metaUrl: string | URL = import.meta.url,
+  deps: { gitlab: GitLabMergeRequestClient },
 ): void {
   if (isReviewPrPiClientConfigured()) {
     return;
   }
-  setReviewPrPiClient(resolveReviewPrDevClients(env, metaUrl).pi);
+  const repoRoot = getRepoRoot(metaUrl);
+  setReviewPrPiClient(
+    resolveReviewPrPiClient({ repoRoot, env, gitlab: deps.gitlab }),
+  );
 }

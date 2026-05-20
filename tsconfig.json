@@ -10,32 +10,57 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "runtime-agent": ["libs/runtime-agent/src/index.ts"],
-      "runtime-manifest": ["libs/runtime-manifest/src/index.ts"],
-      "runtime-agent-sqlite": ["libs/runtime-agent-sqlite/src/index.ts"],
-      "adapter-gitlab": ["libs/adapter-gitlab/src/index.ts"],
-      "agent-reviewer": ["agents/agent-reviewer/src/index.ts"],
-      "example-agent-echo": ["examples/agents/example-agent-echo/src/index.ts"],
-      "runtime-config": ["libs/runtime-config/src/index.ts"],
-      "runtime-events": ["libs/runtime-events/src/index.ts"],
-      "runtime-llm": ["libs/runtime-llm/src/index.ts"],
-      "runtime-observability": ["libs/runtime-observability/src/index.ts"],
-      "pi-harness": ["libs/pi-harness/src/index.ts"],
-      "runtime-store": ["libs/runtime-store/src/index.ts"],
-      "runtime-worker": ["libs/runtime-worker/src/index.ts"],
-      "dev-cli-shared": ["libs/dev-cli-shared/src/index.ts"],
-      "dev-once": ["libs/dev-once/src/index.ts"],
-      "dev-tooling": ["libs/dev-tooling/src/index.ts"],
-      "synapse-fixtures": ["libs/synapse-fixtures/src/index.ts"]
+      "runtime-agent": ["./libs/runtime-agent/src/index.ts"],
+      "runtime-manifest": ["./libs/runtime-manifest/src/index.ts"],
+      "runtime-agent-sqlite": ["./libs/runtime-agent-sqlite/src/index.ts"],
+      "adapter-gitlab": ["./adapters/adapter-gitlab/src/index.ts"],
+      "adapter-gitlab/definition": [
+        "./adapters/adapter-gitlab/src/definition.ts"
+      ],
+      "adapter-gitlab/live": ["./adapters/adapter-gitlab/src/live.ts"],
+      "adapter-gitlab/fixtures": ["./adapters/adapter-gitlab/src/fixtures.ts"],
+      "adapter-gitlab/testing": ["./adapters/adapter-gitlab/src/testing.ts"],
+      "runtime-adapters": ["./libs/runtime-adapters/src/index.ts"],
+      "agent-reviewer": ["./agents/agent-reviewer/src/index.ts"],
+      "agent-reviewer/definition": [
+        "./agents/agent-reviewer/src/definition.ts"
+      ],
+      "example-agent-echo": [
+        "./examples/agents/example-agent-echo/src/index.ts"
+      ],
+      "example-agent-echo/definition": [
+        "./examples/agents/example-agent-echo/src/definition.ts"
+      ],
+      "example-agent-echo/ingress": [
+        "./examples/agents/example-agent-echo/src/ingress.ts"
+      ],
+      "ingress": ["./apps/ingress/src/app.ts"],
+      "runtime-config": ["./libs/runtime-config/src/index.ts"],
+      "runtime-events": ["./libs/runtime-events/src/index.ts"],
+      "runtime-llm": ["./libs/runtime-llm/src/index.ts"],
+      "runtime-observability": ["./libs/runtime-observability/src/index.ts"],
+      "pi-harness": ["./libs/pi-harness/src/index.ts"],
+      "runtime-store": ["./libs/runtime-store/src/index.ts"],
+      "runtime-worker": ["./libs/runtime-worker/src/index.ts"],
+      "dev-cli-shared": ["./libs/dev-cli-shared/src/index.ts"],
+      "dev-once": ["./libs/dev-once/src/index.ts"],
+      "dev-tooling": ["./libs/dev-tooling/src/index.ts"],
+      "synapse-fixtures": ["./libs/synapse-fixtures/src/index.ts"],
+      "synapse-scenarios": ["./libs/synapse-scenarios/src/index.ts"],
+      "synapse-scenarios/runtime": [
+        "./libs/synapse-scenarios/src/runtime/index.ts"
+      ],
+      "synapse-scenarios/files": ["./libs/synapse-scenarios/src/files/index.ts"]
     }
   },
   "include": [
+    "adapters/adapter-gitlab/src/**/*.ts",
+    "apps/adapters/src/**/*.ts",
     "apps/worker/src/**/*.ts",
-    "libs/adapter-gitlab/src/**/*.ts",
+    "libs/runtime-adapters/src/**/*.ts",
     "libs/pi-harness/src/**/*.ts",
-    "apps/webhooks/src/**/*.ts",
+    "apps/ingress/src/**/*.ts",
     "libs/runtime-agent/src/**/*.ts",
     "libs/runtime-manifest/src/**/*.ts",
     "libs/runtime-agent-sqlite/src/**/*.ts",
@@ -45,6 +70,7 @@
     "libs/dev-once/src/**/*.ts",
     "libs/dev-tooling/src/**/*.ts",
     "libs/synapse-fixtures/src/**/*.ts",
+    "libs/synapse-scenarios/src/**/*.ts",
     "libs/runtime-events/src/**/*.ts",
     "libs/runtime-observability/src/**/*.ts",
     "agents/agent-reviewer/src/**/*.ts",
@@ -54,7 +80,6 @@
     "**/node_modules/**",
     "**/coverage/**",
     "**/test/**",
-    "**/*.test.ts",
-    "apps/client/**"
+    "**/*.test.ts"
   ]
 }

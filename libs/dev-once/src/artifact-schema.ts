@@ -14,12 +14,11 @@ export const synapseRunArtifactSchema = z
         path: z.string().min(1),
       })
       .strict(),
-    fixture: z
+    scenario: z
       .object({
         id: z.string().min(1),
         path: z.string().min(1),
-        title: z.string().min(1),
-        agent: z.string().min(1),
+        title: z.string().min(1).optional(),
       })
       .strict(),
     rootEvent: devOnceRunRecordEventSchema.optional(),

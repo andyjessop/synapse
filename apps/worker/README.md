@@ -22,7 +22,7 @@ Reactor handlers and Pi reviews are **not** capped by a wall-clock work timeout;
 progress and outcomes come from `agent_runs` rows and semantic events.
 
 Agents with `sqlite` definitions use an agent-local SQLite file under
-`SYNAPSE_AGENT_SQLITE_DIR` (default `<repoRoot>/.synapse/agent-sqlite`), opened
+`SYNAPSE_AGENT_SQLITE_DIR` (default `<repoRoot>/tmp/dev/agent-sqlite`), opened
 with a Postgres advisory lock for cross-process migration safety. Shutdown
 stops the BullMQ worker first, then closes cached SQLite handles (only after
 in-flight reactor jobs finish, so a late open cannot repopulate the cache after

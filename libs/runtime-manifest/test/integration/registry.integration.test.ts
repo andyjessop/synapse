@@ -1,10 +1,15 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateScenarioForManifest } from 'synapse-scenarios';
 import { describe, expect, it } from 'vitest';
 import {
   loadValidatedManifestRegistry,
   MANIFEST_HANDLER_REACTOR_NAME,
 } from '../../src/index.js';
+import {
+  testKnownEventTypes,
+  testShippedAgentsByName,
+} from '../helpers/test-manifest-load-deps.js';
 
 const repoRoot = join(fileURLToPath(new URL('../../../..', import.meta.url)));
 
@@ -13,6 +18,9 @@ describe('loadValidatedManifestRegistry', () => {
     const { registry } = await loadValidatedManifestRegistry({
       repoRoot,
       manifestPath: join(repoRoot, 'manifests/application.json'),
+      shippedAgents: testShippedAgentsByName,
+      knownEventTypes: testKnownEventTypes,
+      validateScenarioForManifest,
     });
     const agents = registry.findAgentsForEvent('pr.received.v1');
     expect(agents).toHaveLength(1);

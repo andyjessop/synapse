@@ -32,7 +32,7 @@ pipeline.raw.v1  →  parse-raw  →  pipeline.parsed.v1  →  finalize  →  pi
 npx nx run example-agent-pipeline:test
 ```
 
-HTTP: when **`example/pipeline`** is listed on the example manifest `agents[].fixtures`, run **`npm run dev:example`** then **`npm run dev:once -- --fixture example/pipeline`**.
+HTTP: when a scenario **`example/pipeline`** exists on the example manifest `scenarios[]`, run **`npm run dev:example`** then **`npm run dev:once -- --scenario example/pipeline`**.
 
 Trigger: `example-agent-pipeline/pipeline` → `triggerPipeline()` (default payload: three lines with a blank line).
 

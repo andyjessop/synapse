@@ -4,6 +4,6 @@ Curriculum agent: **SQLite-backed append-only notes**. `example.sqlite.note.appe
 
 - **Registry name:** `example-sqlite-notebook`.
 - **Ingress:** `triggerSqliteNotebookAppend` → `example.sqlite.note.append.v1`.
-- **Local run:** `npx nx run example-agent-sqlite-notebook:test` (or add `examples/fixtures/.../sqlite-notebook.fixture.json` on `agents[].fixtures` + webhooks route when HTTP is wired).
+- **Local run:** `npx nx run example-agent-sqlite-notebook:test` (or add a scenario under `scenarios/` + manifest `scenarios[]` and webhooks route when HTTP is wired).
 
 `src/agent.ts` is what the worker runs; `src/ingress.ts` only emits the first signal.

@@ -4,7 +4,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'adapter-gitlab': new URL(
-        '../adapter-gitlab/src/index.ts',
+        '../../adapters/adapter-gitlab/src/index.ts',
         import.meta.url,
       ).pathname,
       'agent-reviewer': new URL(

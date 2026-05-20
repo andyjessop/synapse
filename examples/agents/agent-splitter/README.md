@@ -33,7 +33,7 @@ notify.broadcast.v1  →  notify-email  →  notify.email.v1
 npx nx run example-agent-splitter:test
 ```
 
-HTTP: when **`example/splitter`** is listed on the example manifest `agents[].fixtures`, run **`npm run dev:example`** then **`npm run dev:once -- --fixture example/splitter`**.
+HTTP: when a scenario **`example/splitter`** exists on the example manifest `scenarios[]`, run **`npm run dev:example`** then **`npm run dev:once -- --scenario example/splitter`**.
 
 Trigger: `example-agent-splitter/broadcast` → `triggerBroadcast()`.
 

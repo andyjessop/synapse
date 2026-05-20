@@ -20,6 +20,7 @@ describe('defineAgentHandler', () => {
       agentName: 'test',
       input: { id: 'e1', type: 't', data: { n: 1 } },
       run: { id: 'r1', attempt: 1 },
+      adapters: { invoke: async () => ({}) },
       emit: async () => {
         throw new Error('not used');
       },

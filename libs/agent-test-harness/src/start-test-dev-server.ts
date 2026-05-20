@@ -1,14 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { ServerType } from '@hono/node-server';
 import { serve } from '@hono/node-server';
-import { isReviewPrPiClientConfigured } from 'agent-reviewer';
-import { writeDevSession } from 'dev-cli-shared';
+import type { AgentDefinition } from 'runtime-agent';
 import { getRepoRoot } from 'runtime-config';
 import {
   loadValidatedManifestRegistry,
-  parseRuntimeManifestFile,
   resolveManifestPath,
-  resolveManifestWebhookRouteIds,
 } from 'runtime-manifest';
 import { initializeObservability } from 'runtime-observability';
 import {
@@ -18,8 +15,9 @@ import {
   type RuntimePool,
 } from 'runtime-store';
 import { wrapManifestRuntimeRegistry } from 'runtime-worker';
+import { validateScenarioForManifest } from 'synapse-scenarios';
 
-import { createWebhooksApp } from '../../../apps/webhooks/src/app.js';
+import { createIngressApp } from '../../../apps/ingress/src/app.js';
 import {
   bootstrapTestWorker,
   DEFAULT_INTEGRATION_DATABASE_URL,
@@ -31,7 +29,10 @@ import {
 
 export type StartTestDevServerInput = {
   manifestPath: string;
+  shippedAgents: ReadonlyMap<string, AgentDefinition>;
+  knownEventTypes: ReadonlySet<string>;
   repoRoot?: string;
+  /** Merged before manifest load and ingress startup (e.g. `AGENT_REVIEWER_HERMETIC=1`). */
   env?: Record<string, string | undefined>;
 };
 
@@ -69,26 +70,18 @@ export async function startTestDevServer(
     input.env ?? process.env,
     input.manifestPath,
   );
-  const parsedManifest = parseRuntimeManifestFile(absManifest);
-  const webhookRouteIds = resolveManifestWebhookRouteIds(parsedManifest);
-
   const baseEnv: Record<string, string | undefined> = {
     ...(input.env ?? process.env),
     SYNAPSE_RUNTIME_MANIFEST: absManifest,
   };
 
-  if (
-    webhookRouteIds.includes('synapse.webhooks.prs.v1') &&
-    parsedManifest.agents.some((agent) => agent.name === 'agent-reviewer') &&
-    !isReviewPrPiClientConfigured()
-  ) {
-    baseEnv.AGENT_REVIEWER_HERMETIC = baseEnv.AGENT_REVIEWER_HERMETIC ?? '1';
-  }
-
   const loaded = await loadValidatedManifestRegistry({
     repoRoot,
     manifestPath: absManifest,
+    shippedAgents: input.shippedAgents,
+    knownEventTypes: input.knownEventTypes,
     env: baseEnv,
+    validateScenarioForManifest,
   });
   const manifest = loaded.manifest;
 
@@ -103,6 +96,9 @@ export async function startTestDevServer(
     process.env.RUNTIME_INTEGRATION_REDIS_URL ?? 'redis://127.0.0.1:26379',
     schema,
   );
+  baseEnv.SYNAPSE_PG_SCHEMA = schema;
+  baseEnv.DATABASE_URL = databaseUrl;
+  baseEnv.REDIS_URL = redisUrl;
 
   const registry = wrapManifestRuntimeRegistry(loaded.registry);
   await resetRedis(redisUrl);
@@ -114,52 +110,41 @@ export async function startTestDevServer(
   });
 
   const observability = initializeObservability({
-    serviceName: 'webhooks-test',
+    serviceName: 'ingress',
     mode: 'test',
   });
 
-  const { app } = createWebhooksApp({
+  const { app: ingressApp } = createIngressApp({
     pool,
-    observability,
     repoRoot,
+    manifestPath: absManifest,
     redisUrl,
-    webhookRouteIds,
+    observability,
+    env: baseEnv,
   });
 
-  const webhooksHost = '127.0.0.1';
-  let httpServer!: ServerType;
-  const webhooksPort = await new Promise<number>((resolve, reject) => {
+  const httpServer = await new Promise<ServerType>((resolve, reject) => {
     try {
-      httpServer = serve(
+      const server = serve(
         {
-          fetch: app.fetch,
-          hostname: webhooksHost,
+          fetch: ingressApp.fetch,
+          hostname: '127.0.0.1',
           port: 0,
         },
-        (info) => resolve(info.port),
-      );
-    } catch (error) {
-      reject(error);
+        (info) => {
+          baseEnv.INGRESS_PORT = String(info.port);
+          resolve(server);
+        },
+      ) as ServerType;
+      server.on('error', reject);
+    } catch (err) {
+      reject(err);
     }
   });
 
-  writeDevSession(repoRoot, {
-    manifest_path: absManifest,
-    manifest_name: manifest.name,
-    webhooks: { routes: webhookRouteIds },
-  });
-
-  const env: Record<string, string | undefined> = {
-    ...(input.env ?? process.env),
-    WEBHOOKS_HOST: webhooksHost,
-    WEBHOOKS_PORT: String(webhooksPort),
-    DATABASE_URL: databaseUrl,
-    SYNAPSE_PG_SCHEMA: schema,
-  };
-
   const running: RunningTestDevServer = {
     repoRoot,
-    env,
+    env: baseEnv,
     admin,
     schema,
     pool,
@@ -170,31 +155,29 @@ export async function startTestDevServer(
 
   return {
     repoRoot,
-    env,
-    stop: async () => stopRunningTestDevServer(running),
+    env: baseEnv,
+    stop: async () => {
+      await running.worker.shutdown();
+      await new Promise<void>((resolve, reject) => {
+        running.httpServer.close((err) => (err ? reject(err) : resolve()));
+      });
+      await running.pool.end();
+      await running.admin.query(
+        `drop schema if exists ${running.schema} cascade`,
+      );
+      await running.admin.end();
+      await running.observability.shutdown();
+    },
   };
-}
-
-async function stopRunningTestDevServer(
-  running: RunningTestDevServer,
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    running.httpServer.close((error) => (error ? reject(error) : resolve()));
-  });
-  await running.observability.shutdown();
-  await running.worker.shutdown();
-  await running.pool.end();
-  await running.admin.query(`drop schema if exists ${running.schema} cascade`);
-  await running.admin.end();
 }
 
 export async function withTestDevServer<T>(
   input: StartTestDevServerInput,
-  run: (handle: TestDevServerHandle) => Promise<T>,
+  fn: (handle: TestDevServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await startTestDevServer(input);
   try {
-    return await run(handle);
+    return await fn(handle);
   } finally {
     await handle.stop();
   }

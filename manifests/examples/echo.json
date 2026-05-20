@@ -2,20 +2,7 @@
   "version": 1,
   "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
   "name": "example-echo",
-  "agents": [
-    {
-      "name": "example-echo",
-      "handler": "examples/agents/example-agent-echo/src/echo-agent.ts",
-      "handles": ["example.ping.v1"],
-      "fixtures": {
-        "webhook": [
-          "examples/fixtures/example-agent-echo/echo.fixture.json"
-        ],
-        "adapter": []
-      }
-    }
-  ],
-  "webhooks": {
-    "routes": ["synapse.webhooks.example-echo-ping.v1"]
-  }
+  "description": "Example echo agent with webhook ingress",
+  "agents": [{ "name": "example-echo" }],
+  "webhooks": [{ "source": "synapse.webhooks.example-echo-ping.v1" }]
 }

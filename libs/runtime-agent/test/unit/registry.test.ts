@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defineAgent, defineReactor } from '../../src/index';
+import { defineReactor, defineRegistryAgent } from '../../src/index';
 
 describe('runtime-agent definition validation', () => {
   it('returns reactor definitions unchanged', () => {
@@ -21,7 +21,7 @@ describe('runtime-agent definition validation', () => {
       subscribesTo: ['ticket.opened.v1'],
       handler: async () => undefined,
     });
-    const agent = defineAgent({
+    const agent = defineRegistryAgent({
       name: 'example-agent-notifier',
       reactors: [reactor],
     });

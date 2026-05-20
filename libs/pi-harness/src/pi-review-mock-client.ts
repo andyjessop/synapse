@@ -3,14 +3,10 @@ import type {
   PiReviewRequest,
   PiReviewResult,
 } from 'agent-reviewer';
-import {
-  findAdapterFixtureMatch,
-  type PiReviewAdapterFixture,
-} from 'runtime-manifest';
 
 export type CreatePiReviewMockClientInput = {
   repoRoot: string;
-  rules: readonly PiReviewAdapterFixture[];
+  markdown: string;
 };
 
 export function createPiReviewMockClient(
@@ -18,19 +14,8 @@ export function createPiReviewMockClient(
 ): PiReviewClient {
   return {
     repoRoot: input.repoRoot,
-    review: async (request: PiReviewRequest): Promise<PiReviewResult> => {
-      const rule = findAdapterFixtureMatch(input.rules, {
-        projectId: request.gitlab.projectId,
-        mergeRequestIid: request.gitlab.mergeRequestIid,
-        subject: request.subject,
-        inputEventId: request.inputEventId,
-      });
-      if (rule === undefined) {
-        throw new Error(
-          `No adapter fixture match for pi.review (projectId=${request.gitlab.projectId}, mergeRequestIid=${request.gitlab.mergeRequestIid}). Loaded ${input.rules.length} rule(s).`,
-        );
-      }
-      const markdown = rule.response.markdown;
+    review: async (_request: PiReviewRequest): Promise<PiReviewResult> => {
+      const markdown = input.markdown;
       return {
         markdown,
         command: 'fixture',

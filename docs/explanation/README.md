@@ -26,3 +26,4 @@ Explanation pages build understanding of concepts and trade-offs.
 - [runtime-manifest.md](runtime-manifest.md)
 - [observability-model.md](observability-model.md)
 - [local-first-development.md](local-first-development.md)
+- [synapse-run-loop.md](synapse-run-loop.md)

@@ -1,9 +1,13 @@
 import {
   fixtureIngressIsMounted,
+  fixturePollIngressIsMounted,
   type RuntimeManifest,
 } from 'runtime-manifest';
 
-import { collectAgentWebhookFixturePaths } from './discover-agent-fixtures.js';
+import {
+  collectAgentPollFixturePaths,
+  collectAgentWebhookFixturePaths,
+} from './discover-agent-fixtures.js';
 import { assertRepoRelativeFixturePath } from './fixture-path.js';
 import { parseSynapseFixtureFile } from './parse.js';
 
@@ -33,7 +37,10 @@ export function validateManifestFixtureEntries(
   const seenIds = new Set<string>();
 
   for (const agent of manifest.agents) {
-    const paths = collectAgentWebhookFixturePaths(agent, deps.repoRoot);
+    const paths = [
+      ...collectAgentWebhookFixturePaths(agent, deps.repoRoot),
+      ...collectAgentPollFixturePaths(agent, deps.repoRoot),
+    ];
     if (paths.length === 0) {
       continue;
     }
@@ -53,13 +60,22 @@ export function validateManifestFixtureEntries(
       }
       seenIds.add(fixture.id);
 
-      if (
-        manifest.webhooks?.routes !== undefined &&
-        !fixtureIngressIsMounted(fixture.ingress, manifest)
-      ) {
-        throw new Error(
-          `Fixture ${fixture.id} ingress ${fixture.ingress.method} ${fixture.ingress.path} is not mounted by manifest webhooks.routes`,
-        );
+      if (fixture.ingress.kind === 'webhook') {
+        if (
+          manifest.webhooks !== undefined &&
+          manifest.webhooks.length > 0 &&
+          !fixtureIngressIsMounted(fixture.ingress, manifest)
+        ) {
+          throw new Error(
+            `Fixture ${fixture.id} ingress ${fixture.ingress.method} ${fixture.ingress.path} is not mounted by manifest webhooks`,
+          );
+        }
+      } else if (fixture.ingress.kind === 'poll') {
+        if (!fixturePollIngressIsMounted(fixture.ingress, manifest)) {
+          throw new Error(
+            `Fixture ${fixture.id} poll source ${fixture.ingress.source} is not mounted or disabled in manifest pollers`,
+          );
+        }
       }
 
       for (const eventType of collectFixtureEventTypes(fixture)) {

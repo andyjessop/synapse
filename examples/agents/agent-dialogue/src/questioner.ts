@@ -1,9 +1,9 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { EXAMPLE_AGENT_DIALOGUE_QUESTIONER } from 'runtime-events';
 
 export const DIALOGUE_QUESTIONER_AGENT_NAME = EXAMPLE_AGENT_DIALOGUE_QUESTIONER;
 
-export const dialogueQuestionerAgentDefinition = defineAgent({
+export const dialogueQuestionerAgentDefinition = defineRegistryAgent({
   name: DIALOGUE_QUESTIONER_AGENT_NAME,
   reactors: [
     defineReactor({

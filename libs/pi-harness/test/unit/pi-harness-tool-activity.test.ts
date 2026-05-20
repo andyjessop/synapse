@@ -36,6 +36,30 @@ describe('formatPiToolActivitySummary', () => {
     expect(formatPiToolActivitySummary('ls', { path: 'tmp' })).toBe('ls tmp');
   });
 
+  it('formats bash command', () => {
+    expect(
+      formatPiToolActivitySummary('bash', { command: 'git status --short' }),
+    ).toBe('bash git status --short');
+  });
+
+  it('formats write path and content size', () => {
+    expect(
+      formatPiToolActivitySummary('write', {
+        path: 'out.md',
+        content: 'hello',
+      }),
+    ).toBe('write out.md (5 chars)');
+  });
+
+  it('formats edit path and patch count', () => {
+    expect(
+      formatPiToolActivitySummary('edit', {
+        path: 'src/foo.ts',
+        edits: [{ oldText: 'a', newText: 'b' }],
+      }),
+    ).toBe('edit src/foo.ts (1 patch)');
+  });
+
   it('relativizes absolute paths under repoRoot', () => {
     expect(
       formatPiToolActivitySummary(

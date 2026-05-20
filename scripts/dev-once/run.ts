@@ -1,17 +1,17 @@
-import { isCancel } from '@clack/prompts';
-import { formatRunRecordFlow } from 'dev-cli-shared';
-import { runDevOnce } from 'dev-once';
 import { join } from 'node:path';
+import { isCancel } from '@clack/prompts';
+import { runDevOnce } from 'dev-once';
+import { getRepoRoot, loadDotEnvLocal } from 'runtime-config';
+import { listScenariosForManifest } from 'synapse-scenarios';
 import { formatReviewPrDevStartupLine } from '../../agents/agent-reviewer/src/review-pr-manifest.js';
-import { loadDotEnvLocal, getRepoRoot } from 'runtime-config';
-import { listManifestFixtures } from 'synapse-fixtures';
 
 import {
-  loadSessionManifest,
+  loadActiveDevManifest,
   parseDevOnceArgv,
   printDevOnceHelp,
-  promptFixtureSelection,
+  promptScenarioSelection,
 } from './cli.js';
+
 export async function runDevOnceCli(
   argv: readonly string[],
   metaUrl: string | URL,
@@ -23,69 +23,69 @@ export async function runDevOnceCli(
   }
 
   const repoRoot = getRepoRoot(metaUrl);
-  const { session, manifest } = loadSessionManifest(metaUrl);
-  const entries = listManifestFixtures(manifest, repoRoot);
+  const { manifestPath, manifest } = loadActiveDevManifest(
+    metaUrl,
+    mode.manifestPath,
+  );
+  const entries = listScenariosForManifest(repoRoot, manifest);
 
   if (mode.list) {
     process.stdout.write(`Active dev session\n`);
-    process.stdout.write(`manifest: ${session.manifest_name}\n`);
-    process.stdout.write(`path: ${session.manifest_path}\n\n`);
+    process.stdout.write(`manifest: ${manifest.name}\n`);
+    process.stdout.write(`path: ${manifestPath}\n\n`);
     if (entries.length === 0) {
-      process.stdout.write('(no fixtures listed on manifest agents)\n');
+      process.stdout.write('(no scenarios listed on manifest)\n');
       return 0;
     }
-    const byAgent = new Map<string, typeof entries>();
     for (const entry of entries) {
-      const list = byAgent.get(entry.agent) ?? [];
-      list.push(entry);
-      byAgent.set(entry.agent, list);
-    }
-    for (const [agent, list] of byAgent) {
-      process.stdout.write(`${agent}\n`);
-      for (const f of list) {
-        process.stdout.write(`  ${f.id}  ${f.title}\n`);
-      }
+      process.stdout.write(`  ${entry.id}  ${entry.title}\n`);
     }
     return 0;
   }
 
-  let fixtureId = mode.fixtureId;
-  if (fixtureId === undefined) {
+  let scenarioId = mode.scenarioId;
+  if (scenarioId === undefined) {
     process.stdout.write(
-      `Active manifest:\n  ${session.manifest_name}  ${session.manifest_path}\n\n`,
+      `Active manifest:\n  ${manifest.name}  ${manifestPath}\n\n`,
     );
-    const choice = await promptFixtureSelection(entries);
+    const choice = await promptScenarioSelection(entries);
     if (isCancel(choice)) {
       process.stdout.write('Cancelled.\n');
       return 1;
     }
-    fixtureId = choice.fixtureId;
+    scenarioId = choice.scenarioId;
   }
 
   const useLiveGraph = !mode.json && !mode.noWait;
 
-  const entry = entries.find((e) => e.id === fixtureId);
   if (
     useLiveGraph &&
-    entry?.agent === 'agent-reviewer' &&
-    fixtureId.startsWith('review-pr/')
+    scenarioId.startsWith('review-pr/') &&
+    manifest.agents.some((a) => a.name === 'agent-reviewer')
   ) {
     const envForPi = loadDotEnvLocal(join(repoRoot, '.env.local'), {
       ...process.env,
-      SYNAPSE_RUNTIME_MANIFEST: session.manifest_path,
+      SYNAPSE_RUNTIME_MANIFEST: manifestPath,
     });
     process.stdout.write(
       `${formatReviewPrDevStartupLine(envForPi, metaUrl)}\n`,
     );
     process.stdout.write(
-      'Restart npm run dev after changing AGENT_REVIEWER_* or PI_* env or manifest fixtures.adapter.\n\n',
+      'Restart npm run dev after changing AGENT_REVIEWER_* or PI_* env or scenario adapter fixtures.\n\n',
     );
   }
 
   try {
+    if (mode.clean && !mode.json) {
+      process.stderr.write(
+        '[dev:once:clean] wiping loopback Postgres runtime tables and reactor queue\n',
+      );
+    }
     const artifact = await runDevOnce({
       repoRoot,
-      fixtureId,
+      scenarioId,
+      manifestPath: mode.manifestPath,
+      clean: mode.clean,
       noWait: mode.noWait,
       liveGraph: useLiveGraph,
       onLiveGraphLine: useLiveGraph
@@ -100,9 +100,12 @@ export async function runDevOnceCli(
       return artifact.status === 'succeeded' ? 0 : 1;
     }
 
+    if (useLiveGraph) {
+      process.stdout.write('\n');
+    }
     process.stdout.write('Synapse Run Loop\n');
     process.stdout.write(`manifest: ${artifact.manifest.name}\n`);
-    process.stdout.write(`fixture: ${artifact.fixture.id}\n`);
+    process.stdout.write(`scenario: ${artifact.scenario.id}\n`);
     if (artifact.rootEvent !== undefined) {
       process.stdout.write(`root event: ${artifact.rootEvent.id}\n`);
     }
@@ -119,42 +122,20 @@ export async function runDevOnceCli(
     if (!useLiveGraph) {
       process.stdout.write('\nEvents\n');
       for (const event of artifact.events) {
-        process.stdout.write(`  ${event.id} ${event.type}\n`);
+        process.stdout.write(`  ${event.type}  ${event.id}\n`);
       }
       process.stdout.write('\nAgent runs\n');
       for (const run of artifact.agentRuns) {
         process.stdout.write(
-          `  ${run.id} ${run.agentName} ${run.reactorName} ${run.status}\n`,
+          `  ${run.agentName}  ${run.status}  ${run.reactorName}\n`,
         );
-      }
-      const flow = formatRunRecordFlow({
-        version: 1,
-        recordedAt: new Date().toISOString(),
-        scenarioId: artifact.fixture.id,
-        inputEventId: artifact.rootEvent?.id ?? '',
-        rootId: artifact.rootEvent?.rootId ?? '',
-        events: artifact.events,
-        agentRuns: artifact.agentRuns,
-      });
-      process.stdout.write(`\n${flow}\n`);
-    } else if (artifact.status === 'failed') {
-      for (const run of artifact.agentRuns) {
-        if (run.status === 'failed' && run.lastError !== undefined) {
-          process.stderr.write(
-            `\n[dev:once] ${run.agentName}/${run.reactorName} failed: ${run.lastError}\n`,
-          );
-        }
       }
     }
 
     return artifact.status === 'succeeded' ? 0 : 1;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (mode.json) {
-      process.stdout.write(`${JSON.stringify({ error: message }, null, 2)}\n`);
-    } else {
-      process.stderr.write(`${message}\n`);
-    }
+    process.stderr.write(`dev:once failed: ${message}\n`);
     return 1;
   }
 }

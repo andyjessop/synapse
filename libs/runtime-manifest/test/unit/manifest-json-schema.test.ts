@@ -27,6 +27,7 @@ describe('runtime manifest JSON Schema', () => {
     for (const rel of [
       'manifests/application.json',
       'manifests/examples/echo.json',
+      'manifests/examples/echo-poll.json',
       'manifests/examples/all.json',
       'manifests/debug/reviewer-only.json',
     ]) {

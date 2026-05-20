@@ -9,13 +9,18 @@ export const WEBHOOK_FIXTURE_SCHEMA_PATHS = {
   RUN_LOOP: 'libs/runtime-manifest/schemas/webhook/run-loop.v1.schema.json',
 } as const;
 
+export const POLL_FIXTURE_SCHEMA_PATHS = {
+  RUN_LOOP: 'libs/runtime-manifest/schemas/poll/run-loop.v1.schema.json',
+} as const;
+
+export type PollFixtureSchemaPath =
+  (typeof POLL_FIXTURE_SCHEMA_PATHS)[keyof typeof POLL_FIXTURE_SCHEMA_PATHS];
+
 export type WebhookFixtureSchemaPath =
   (typeof WEBHOOK_FIXTURE_SCHEMA_PATHS)[keyof typeof WEBHOOK_FIXTURE_SCHEMA_PATHS];
 
-/** Repo-root-relative JSON Schema paths for adapter fixtures (authoritative in runtime-manifest). */
+/** Repo-root-relative JSON Schema paths for in-process adapter fixtures (runtime-manifest). */
 export const ADAPTER_FIXTURE_SCHEMA_PATHS = {
-  GITLAB_FETCH_CHANGES:
-    'libs/runtime-manifest/schemas/adapter/gitlab.fetchChanges.v1.schema.json',
   PI_REVIEW: 'libs/runtime-manifest/schemas/adapter/pi.review.v1.schema.json',
 } as const;
 
@@ -24,6 +29,7 @@ export type AdapterFixtureSchemaPath =
 
 const knownFixtureSchemaPaths = new Set<string>([
   ...Object.values(WEBHOOK_FIXTURE_SCHEMA_PATHS),
+  ...Object.values(POLL_FIXTURE_SCHEMA_PATHS),
   ...Object.values(ADAPTER_FIXTURE_SCHEMA_PATHS),
 ]);
 

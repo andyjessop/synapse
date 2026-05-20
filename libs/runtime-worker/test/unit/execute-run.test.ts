@@ -1,4 +1,4 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { describe, expect, it, vi } from 'vitest';
 import { executeRun } from '../../src/execute-run';
 import { createRuntimeRegistry } from '../../src/registry';
@@ -9,7 +9,7 @@ describe('executeRun', () => {
       claimRun: vi.fn(),
     };
     const registry = createRuntimeRegistry([
-      defineAgent({
+      defineRegistryAgent({
         name: 'agent',
         reactors: [
           defineReactor({
@@ -43,7 +43,7 @@ describe('executeRun', () => {
       markRunSucceeded: vi.fn(),
     };
     const registry = createRuntimeRegistry([
-      defineAgent({
+      defineRegistryAgent({
         name: 'agent',
         reactors: [
           defineReactor({
@@ -86,6 +86,7 @@ describe('executeRun', () => {
         rootId: 'evt-1',
         createdAt: '2026-01-01T00:00:00.000Z',
       }),
+      releaseRunForOtherWorker: vi.fn(),
       markRunFailed: vi.fn(),
       markRunSucceeded: vi.fn(),
     };
@@ -93,7 +94,49 @@ describe('executeRun', () => {
     await expect(
       executeRun('run-1', { store: store as never, registry }),
     ).rejects.toThrow(/Missing agent registration/);
+    expect(store.releaseRunForOtherWorker).not.toHaveBeenCalled();
     expect(store.markRunFailed).toHaveBeenCalled();
+    expect(store.markRunSucceeded).not.toHaveBeenCalled();
+  });
+
+  it('releases the run when this worker does not mount the agent', async () => {
+    const store = {
+      claimRun: vi.fn().mockResolvedValue({
+        id: 'run-1',
+        inputEventId: 'evt-1',
+        agentName: 'agent-reviewer',
+        reactorName: 'handler',
+        status: 'running',
+        attemptCount: 1,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+      loadEvent: vi.fn().mockResolvedValue({
+        id: 'evt-1',
+        type: 'pr.received.v1',
+        source: 'test',
+        externalId: 'ext',
+        data: {},
+        rootId: 'evt-1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+      releaseRunForOtherWorker: vi.fn().mockResolvedValue(true),
+      markRunFailed: vi.fn(),
+      markRunSucceeded: vi.fn(),
+    };
+    const registry = {
+      findAgentsForEvent: () => [],
+      matchReactors: () => [],
+      getAgent: () => {
+        throw new Error('Missing agent registration: agent-reviewer');
+      },
+      getReactor: () => {
+        throw new Error('Missing agent registration: agent-reviewer');
+      },
+    };
+    await executeRun('run-1', { store: store as never, registry });
+    expect(store.releaseRunForOtherWorker).toHaveBeenCalledWith('run-1');
+    expect(store.markRunFailed).not.toHaveBeenCalled();
     expect(store.markRunSucceeded).not.toHaveBeenCalled();
   });
 

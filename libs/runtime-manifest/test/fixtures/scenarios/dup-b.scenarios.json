@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/scenario/run-loop.v1.schema.json",
+  "scenarios": [
+    {
+      "id": "dup/scenario",
+      "manifests": ["dup-scenario-ids"],
+      "ingress": {
+        "source": "synapse.webhooks.example-echo-ping.v1",
+        "fixtures": [{ "file": "fixtures/example-agent-echo/ping.json" }]
+      }
+    }
+  ]
+}

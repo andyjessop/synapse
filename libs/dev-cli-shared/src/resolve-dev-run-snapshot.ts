@@ -29,7 +29,7 @@ export function findLatestDevRunSnapshotRelativePath(
 }
 
 /**
- * Polls until the ingress snapshot file exists (written by `apps/webhooks` in the background).
+ * Polls until the ingress snapshot file exists (written by `apps/ingress` in the background).
  */
 export async function waitForLatestDevRunSnapshotRelativePath(
   repoRoot: string,

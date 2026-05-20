@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import {
   agentRunId,
   appendEvent,
@@ -376,7 +376,7 @@ describe.skipIf(!integrationAvailable)('streams minimum failure suite', () => {
 
   it('queueing_one_item_failure_does_not_block_other_runs', async () => {
     await withIsolatedStreamsStore(async (ctx) => {
-      const failingAgent = defineAgent({
+      const failingAgent = defineRegistryAgent({
         name: 'fail-agent',
         reactors: [
           defineReactor({

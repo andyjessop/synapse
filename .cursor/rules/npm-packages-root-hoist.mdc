@@ -8,7 +8,7 @@ alwaysApply: true
 ## Where versions live
 
 - Declare **every npm dependency and devDependency only in the root** `package.json` (`source`).
-- Workspace `apps/*` and `libs/*` packages must **not** define `dependencies` or `devDependencies`. Versions and upgrades happen in one place; install hoists from the root.
+- Workspace `apps/*`, `libs/*`, `agents/*`, and `adapters/*` packages must **not** define `dependencies` or `devDependencies`. Versions and upgrades happen in one place; install hoists from the root.
 
 ## What workspace `package.json` files contain
 

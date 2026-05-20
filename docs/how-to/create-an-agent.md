@@ -3,16 +3,16 @@ title: Create an agent
 kind: how-to
 owner: runtime-agent
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - agents/**
   - manifests/**
+  - scenarios/**
   - libs/runtime-agent/**
   - libs/runtime-manifest/**
-  - apps/worker/src/manifest-registry.ts
-  - apps/webhooks/**
-  - fixtures/**/*.fixture.json
-  - libs/synapse-fixtures/**
+  - apps/worker/src/shipped-agents.ts
+  - apps/ingress/**
+  - fixtures/**
 ---
 
 # Create an agent
@@ -23,11 +23,11 @@ Add an **application** capability agent under `agents/` that ships with the prod
 
 ## Before You Start
 
-- [Runtime manifest](../reference/runtime-manifest.md) — registration model
-- [Agent reference](../reference/agents.md) — naming and layout
+- [Runtime manifest](../reference/runtime-manifest.md)
+- [Agent reference](../reference/agents.md)
 - [Agents and adapters](../explanation/agents-and-adapters.md)
 - [Add a runtime event](add-a-runtime-event.md)
-- Reference: `agents/agent-reviewer/` (`src/review-pr-agent.ts`, `manifests/application.json`)
+- Reference: `agents/agent-reviewer/` (`review-pr-agent.definition.ts`, `manifests/application.json`, `scenarios/agent-reviewer/`)
 
 ## Steps
 
@@ -36,15 +36,18 @@ Add an **application** capability agent under `agents/` that ships with the prod
 Under `agents/agent-<name>/`:
 
 ```text
-src/<feature>-agent.ts   # default export handler (defineAgentHandler)
-src/ingress.ts           # optional webhook/test ingress helpers
+src/<feature>-agent.definition.ts   # defineAgent
+src/<feature>-agent.ts              # default export handler (defineAgentHandler)
+src/definition.ts                   # export { myAgent } for shipped-agents
+src/ingress.ts                      # optional webhook/test ingress helpers
 src/index.ts
 test/unit/
 test/integration/*.e2e.test.ts
-fixtures/<agent-name>/   # at repo root: fixtures/<agent-name>/
+fixtures/<agent-name>/              # at repo root: fixtures/<agent-name>/
+scenarios/<agent-name>/             # *.scenarios.json (repo root scenarios/)
 ```
 
-Do **not** add `agent.ts` with `defineAgent` or `reactor.ts` with `subscribesTo`.
+Do **not** add legacy `agent.ts` with `defineRegistryAgent` or `reactor.ts` with `subscribesTo` for shipped product agents.
 
 ### 2. Implement the handler
 
@@ -56,43 +59,69 @@ const myDataSchema = z.object({ /* handler-local */ }).strict();
 
 export default defineAgentHandler(myDataSchema, async (ctx, event) => {
   // business logic; ctx.emit for outcomes
+  // external IO: await ctx.adapters.invoke({ source, method, params })
 });
 ```
 
-Inject dev dependencies (Pi, GitLab, etc.) via module-level setters or env — wire calls from `apps/worker/src/manifest-registry.ts` if the worker must configure clients at startup (see `setReviewPrPiClient`).
+Handler-local Zod for `event.data` — do not import registry schemas into handlers.
 
-### 3. Register event types
+### 3. Define the agent
 
-Add types to `libs/runtime-events` ([Add a runtime event](add-a-runtime-event.md)). Manifest `handles` must use exact registry type strings.
+```ts
+import { defineAgent } from 'runtime-agent';
+import runMyAgent from './my-agent.js';
 
-### 4. Add a manifest entry
+export const myAgent = defineAgent({
+  name: 'my-agent',
+  handles: ['my.signal.v1'],
+  usesAdapters: ['synapse.adapters.gitlab.v1'], // optional
+  run: runMyAgent,
+});
+```
 
-Edit `manifests/application.json` (or add a dedicated manifest you pass to `npm run dev`):
+Export from `definition.ts` and add to **`apps/worker/src/shipped-agents.ts`**.
+
+### 4. Register event types
+
+Add types to `libs/runtime-events` ([Add a runtime event](add-a-runtime-event.md)). Definition `handles` must use exact registry type strings.
+
+### 5. Mount on a manifest
+
+Edit `manifests/application.json` (or a dedicated manifest):
 
 ```json
 {
-  "name": "my-agent",
-  "handler": "agents/agent-<name>/src/<feature>-agent.ts",
-  "handles": ["my.signal.v1"]
+  "agents": [{ "name": "my-agent" }],
+  "webhooks": [{ "source": "synapse.webhooks.my-route.v1" }],
+  "adapters": [{ "source": "synapse.adapters.gitlab.v1" }]
 }
 ```
 
-Validation runs at worker startup — unknown event types or bad handler paths fail fast.
+Agent entries are **name only**. Webhook route ids come from `libs/runtime-manifest/src/webhook-route-catalog.ts`; register routes in `apps/ingress`.
 
-### 5. Dev adapters (if needed)
+### 6. Add a scenario (HTTP ingress)
 
-Declare `adapterFixtures` (or agent-local bootstrap) on the manifest agent row and in the handler package. Document env in [Environment](../reference/environment.md).
+Create `scenarios/my-agent/my-scenario.scenarios.json`:
 
-### 6. HTTP ingress and fixture contract (when applicable)
+```json
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/scenario/run-loop.v1.schema.json",
+  "scenarios": [
+    {
+      "id": "my-agent/smoke",
+      "manifests": ["application-default"],
+      "ingress": {
+        "source": "synapse.webhooks.my-route.v1",
+        "fixtures": [{ "file": "fixtures/my-agent/payload.json" }]
+      },
+      "terminalEventTypes": ["my.outcome.v1"]
+    }
+  ]
+}
+```
 
-Treat fixtures as **first-class contracts** (payload + `*.fixture.json` + manifest `agents[].fixtures` + tests):
-
-1. Static payload under `fixtures/<agent-name>/`
-2. Zod-validated route in `apps/webhooks/`
-3. `*.fixture.json` validated by `synapseFixtureSchema` (`id`, webhook `ingress`, optional `expect`)
-4. Fixture path on manifest `agents[].fixtures`
-5. E2e loads the same `fixture.file` path via `runAgentE2e`
-6. Document in `apps/webhooks/README.md` and `fixtures/README.md`
+Optional **`adapters[]`** on the scenario for hermetic `dev:once` (see `review-pr-gitlab-synapse.scenarios.json`). Document env in [Environment](../reference/environment.md) when agents need hermetic modes (`AGENT_REVIEWER_HERMETIC`, etc.).
 
 ### 7. Tests
 
@@ -100,19 +129,32 @@ Treat fixtures as **first-class contracts** (payload + `*.fixture.json` + manife
 - E2e with `agent-test-harness`:
 
 ```ts
-await runAgentE2e({
-  manifestPath: 'manifests/application.json',
-  run: async ({ pool, repoRoot }) => {
-    // configure clients, emit ingress, assert runs / events
+import { eventRegistry } from 'runtime-events';
+import { shippedAgentsByName } from '../../../apps/worker/src/shipped-agents.js';
+
+const knownEventTypes = new Set(Object.keys(eventRegistry));
+
+await withTestDevServer(
+  {
+    manifestPath: 'manifests/application.json',
+    shippedAgents: shippedAgentsByName,
+    knownEventTypes,
   },
-});
+  async (dev) => {
+    const artifact = await runDevOnce({
+      scenarioId: 'my-agent/smoke',
+      env: dev.env,
+    });
+    expect(artifact.status).toBe('succeeded');
+  },
+);
 ```
 
-Use `reactorName: 'handler'` when asserting `agent_runs` (manifest planner name).
+Use `reactorName: 'handler'` when asserting `agent_runs`.
 
 ### 8. Documentation
 
-Update `agents/README.md` and any agent package README.
+Update `agents/README.md` and the agent package README.
 
 Checklist: `.cursor/rules/new-agent.mdc`, `.cursor/rules/agent-handlers.mdc`.
 
@@ -120,17 +162,17 @@ Checklist: `.cursor/rules/new-agent.mdc`, `.cursor/rules/agent-handlers.mdc`.
 
 ```bash
 npx nx run agent-<name>:test
-npm run dev:infra
 npm run dev
-npm run dev:once -- --fixture <fixture-id>
-npx nx run runtime-manifest:test   # when touching manifest rules
+npm run dev:once -- --scenario my-agent/smoke
+npx nx run runtime-manifest:test
 ```
 
 ## Troubleshooting
 
-- **Unknown event type in manifest:** Register in `runtime-events` first.
-- **Handler not a function:** Default export must be `defineAgentHandler` or async function with Zod parse.
-- **Fixture not listed:** Add fixture JSON and list its path on `agents[].fixtures`.
+- **Unknown agent name:** Add `defineAgent` export to `shipped-agents.ts`.
+- **Unknown event type:** Register in `runtime-events`; add to definition `handles`.
+- **Scenario not listed:** Add your manifest `name` to scenario `manifests[]`; check scenario `id`.
+- **usesAdapters not mounted:** Add source to manifest `adapters[]`.
 - **Idempotency:** Handlers are at-least-once; guard side effects with dedupe keys.
 
 ## Related pages

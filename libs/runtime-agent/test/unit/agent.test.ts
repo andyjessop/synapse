@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { defineAgent, defineReactor } from '../../src/index';
+import { defineReactor, defineRegistryAgent } from '../../src/index';
 
 describe('runtime-agent', () => {
-  it('defineAgent returns the same agent definition', () => {
+  it('defineRegistryAgent returns the same agent definition', () => {
     const reactor = defineReactor({
       name: 'example',
       subscribesTo: ['example.ping.v1'],
       handler: async () => {},
     });
-    const agent = defineAgent({
+    const agent = defineRegistryAgent({
       name: 'example-echo',
       reactors: [reactor],
     });

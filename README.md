@@ -2,71 +2,136 @@
 
 Nx workspace for Synapse, a bare-bones event-driven agentic framework. This repository provides runtime foundations and shared libraries for building reactive, durable AI agents.
 
+## Goals
+
+- **Local-first** — run the full loop on your machine with Docker and fixtures; no cloud or vendor credentials required for the default path.
+- **Simple commands** — `npm install`, `npm run dev`, `npm run dev:once:clean` cover the usual day-to-day workflow from the repo root.
+- **Scenario-driven development** — **declarative** fixtures in `scenarios/`; **`dev:once`** to run them; **observable** via the CLI summary and `tmp/dev/runs/` graph snapshots (reused in hermetic tests).
+- **Durable and observable** — events and agent runs live in Postgres; traces and metrics go to local Jaeger/OTel when the stack is up.
+
+Agents react to **events**; adapters handle external IO; the runtime owns storage, queues, and delivery.
+
 ## Documentation
 
-Canonical documentation lives in [`docs/`](docs/README.md). New contributors should start with the [local runtime example (echo) tutorial](docs/tutorials/local-runtime-example-echo.md), then [runtime manifest](docs/reference/runtime-manifest.md) and [local agent development](docs/how-to/local-agent-development.md) (`npm run dev`, manifests, `dev:once` fixtures). Agent topology: [docs/reference/agents.md](docs/reference/agents.md). Commands: [docs/reference/commands.md](docs/reference/commands.md).
+Canonical documentation lives in [`docs/`](docs/README.md). New contributors should start with the [local runtime example (echo) tutorial](docs/tutorials/local-runtime-example-echo.md), then [runtime manifest](docs/reference/runtime-manifest.md) and [local agent development](docs/how-to/local-agent-development.md).
 
-## Verify locally first
+## Local usage
 
-Everything in this repo is designed so you can **prove it works on your machine, with no network**. Run **A** first from the repository root. **B** is the long-lived stack (worker and webhooks). **C** posts manifest-listed fixture JSON contracts to webhooks while **B** is running. Full detail: [local agent development](docs/how-to/local-agent-development.md).
+All commands run from the **repository root** in two terminals.
 
-All commands assume you are in the repo root:
-
-### A. Install dependencies
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-Run this once (and again after pulling dependency changes). Workspace packages are linked under `node_modules/`.
+Downloads and links workspace packages. Run once after clone, and again when `package.json` dependencies change.
 
----
-
-### B. Start the full local stack (recommended)
-
-**One terminal** — infrastructure plus runtime apps:
+### 2. Start the stack (terminal 1)
 
 ```bash
 npm run dev
 ```
 
-This runs `docker compose -f local/docker-compose.yml up -d --wait`, checks health with `dev:infra:doctor`, applies **Postgres runtime store migrations**, then starts **worker** and **webhooks** with prefixed logs in the same terminal. You do **not** need to run `dev:infra` first.
+Starts local infrastructure (Docker: Postgres, Redis, observability), applies database migrations, then runs the **worker** and **ingress** (webhooks on `http://127.0.0.1:3102`). Default manifest is `manifests/application.json` (includes `agent-reviewer` and GitLab MR ingress).
 
-Useful variants:
+Leave this terminal running while you work. Startup prints which manifest loaded.
 
-| Command | What starts |
-| --- | --- |
-| `npm run dev` | Docker infra + Postgres migrations + worker + webhooks |
-| `npm run dev:example` | Same as `npm run dev -- --manifest manifests/examples/echo.json` (examples agents + examples webhook routes) |
-| `npm run dev -- --manifest <path>` | Load agents and webhooks from a specific manifest JSON |
-| `npm run dev:infra` | Docker infra only |
-| `npm run dev:infra:doctor` | Reachability check only |
+### 3. Run a scenario (terminal 2)
 
-`npm run dev:once` posts run-loop fixture ingress to the running stack (see `apps/webhooks/README.md`); fixture ids come from `agents[].fixtures.webhook` on the manifest you started with **`npm run dev`**. For **`agent-reviewer`**, **`npm run dev`** defaults to **live Pi SDK** plus adapter mock rules from **`fixtures.adapter`** (see `libs/runtime-manifest` schema ids). Set **`AGENT_REVIEWER_HERMETIC=1`** before **`npm run dev`** for a hermetic Pi adapter fixture run. Accepted webhook runs write a graph snapshot under **`tmp/dev/runs/`** (see `apps/webhooks/README.md`).
-
-`dev:infra` alone runs `docker compose -f local/docker-compose.yml up -d --wait` (Postgres 16, Redis 7, OpenTelemetry Collector, Jaeger). Published ports bind to `127.0.0.1` on the host only. They use **non-default host ports** so this stack can run beside other local instances:
-
-| Service | Host port | Container port |
-| --- | --- | --- |
-| Postgres | 25432 | 5432 |
-| Redis | 26379 | 6379 |
-| OTLP (gRPC) | 24317 | 4317 |
-| OTLP (HTTP) | 24318 | 4318 |
-| OTel collector health | 21333 | 13133 |
-| Jaeger UI | 26686 | 16686 |
-
-`dev:infra:doctor` checks process reachability. Code defaults point at the host ports above, so the happy local path needs **no `.env.local` at all**.
-
-Other infra commands:
+With `npm run dev` still running:
 
 ```bash
-npm run dev:infra:down          # stop containers, keep volumes
-npm run dev:infra:reset         # stop containers and delete volumes
+npm run dev:once:clean
 ```
 
-**GitLab MR** ingress is available while **`npm run dev`** is up (`npm run dev:once -- --fixture review-pr/gitlab-synapse`, or `POST` manually). **Example echo** HTTP ingress is available while **`npm run dev:example`** is up (`npm run dev:once -- --fixture example/echo`). Webhooks listen on `http://127.0.0.1:3102` by default — see `apps/webhooks/README.md`.
+**`dev:once:clean`** runs one test ingress payload (from `scenarios/`), waits for agents to finish, and prints a short summary. **`--scenario`** picks which fixture to run.
 
-**Inspect durable state** whenever Postgres from the table above is reachable (for example while **B** is running, or after `dev:once` fixture runs in **C**):
+**`--fixture`** is the same as **`--scenario`**.
+
+---
+
+## Why `dev:once:clean`
+
+A normal `dev:once` run leaves prior events in Postgres. Webhooks often dedupe on the same `source` + `external_id`, so a second run can replay an old terminal result instead of executing agents again.
+
+**`dev:once:clean`** clears that state first, then runs the scenario.
+
+1. Truncates loopback Postgres runtime tables (`events`, `agent_runs`)
+2. Drains the BullMQ reactor queue
+3. Clears a stale adapter scenario binding if a previous `dev:once` was interrupted
+4. Posts the scenario to ingress and waits for the run to finish
+
+Use **`dev:once:clean`** when you want a **fresh** agent run every time. Use plain **`dev:once`** when you only need to inspect or re-wait on existing durable state.
+
+---
+
+## Output and how to verify an agent worked
+
+While the run executes, the terminal prints a live **event / agent graph** (types, agent names, status glyphs).
+
+When it finishes, you should see something like:
+
+```text
+Synapse Run Loop
+manifest: application
+scenario: review-pr/gitlab-synapse
+root event: evt_…
+status: succeeded
+artifact: tmp/dev/runs/20260521194449_evt_….json
+```
+
+| Check | Good sign |
+| --- | --- |
+| Exit code | `0` |
+| `status:` | `succeeded` |
+| `artifact:` line | Path to a new file under `tmp/dev/runs/` |
+
+Open the **artifact** JSON (pretty-print or `jq`) for the full graph:
+
+| Field | What to look for |
+| --- | --- |
+| `events` | Chain from the input event through follow-up types (not a single isolated event) |
+| `agentRuns` | At least one run for your agent (e.g. `agent-reviewer`) with `"status": "succeeded"` |
+| `lastError` | Should be absent on agent runs |
+
+For **`review-pr/gitlab-synapse`**: input is a GitLab MR webhook (`pr.received.v1`); expect downstream review events and a succeeded **`agent-reviewer`** run. Live Pi review needs `OPENAI_API_KEY` in repo-root `.env.local` unless you set `AGENT_REVIEWER_HERMETIC=1` on `npm run dev` (see `agents/agent-reviewer/README.md`).
+
+**Example echo** (no application agents): start with `npm run dev:example`, then:
+
+```bash
+npm run dev:once:clean -- --manifest manifests/examples/echo.json --scenario example/echo
+```
+
+Expect `example-echo` succeeded and `example.pong.v1` in the event chain.
+
+More detail: [local agent development](docs/how-to/local-agent-development.md), `apps/ingress/README.md`, `libs/dev-cli-shared/README.md`.
+
+---
+
+## Other commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev:once -- --list` | Scenarios for the manifest (default `application.json`) |
+| `npm run dev:once -- --scenario <id>` | Run without wiping Postgres first |
+| `npm run dev -- --manifest <path>` | Load different agents / webhooks |
+| `npm run dev:example` | `dev` with `manifests/examples/echo.json` |
+| `npm run dev:infra` | Docker only (Postgres, Redis, Jaeger) |
+| `npm run dev:infra:down` | Stop containers, keep volumes |
+| `npm run dev:infra:reset` | Stop containers and delete volumes |
+
+### Infrastructure ports
+
+`npm run dev` starts Docker on loopback-only host ports (no `.env.local` required for defaults):
+
+| Service | Host port |
+| --- | --- |
+| Postgres | 25432 |
+| Redis | 26379 |
+| Jaeger UI | 26686 |
+
+### Inspect Postgres directly
 
 ```sql
 select id, type, source, external_id, root_id, parent_id
@@ -80,35 +145,7 @@ order by created_at desc
 limit 20;
 ```
 
----
-
-### C. Webhook fixture sender (requires **B**)
-
-With **`npm run dev`** (or **`npm run dev:example`**) already running, use a **second terminal** to POST manifest fixtures to **`apps/webhooks`** and print follow-up (event chain, flow, links). Same playbook: [local agent development](docs/how-to/local-agent-development.md), `apps/webhooks/README.md`.
-
-```bash
-npm run dev:once -- --list
-npm run dev:once -- --fixture review-pr/gitlab-synapse
-
-# after npm run dev:example (or dev -- --manifest manifests/examples/…)
-npm run dev:once -- --fixture example/echo
-```
-
-Fixture ids in `--list` follow the manifest written to `.synapse/dev-session.json` when dev started.
-
-The SQL queries under **B** apply here too once events exist.
-
-#### Review agent scenario (local)
-
-```bash
-npm run dev:once -- --fixture review-pr/gitlab-synapse
-```
-
-This posts the GitLab MR fixture to **`POST /v1/prs`** and follows durable state in Postgres. For **live Pi SDK** review of your checkout (default `openai/gpt-5.4-mini`), set `OPENAI_API_KEY` in repo-root `.env.local` (see `agents/agent-reviewer/README.md`).
-
-### D. Hermetic CI-style verification (no Docker)
-
-From the repo root:
+### CI-style verification (no Docker)
 
 ```bash
 npm install
@@ -117,11 +154,7 @@ npx nx run-many -t typecheck --all
 npx nx run-many -t test --all
 ```
 
-To apply formatting:
-
-```bash
-npx nx run-many -t format --all && npx biome format --write biome.json vitest.config.ts
-```
+Formatting: `npx nx run-many -t format --all && npx biome format --write biome.json vitest.config.ts`
 
 ---
 

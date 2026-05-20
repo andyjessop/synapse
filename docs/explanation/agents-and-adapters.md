@@ -3,52 +3,52 @@ title: Agents and adapters
 kind: explanation
 owner: runtime-agent
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - libs/runtime-agent/**
+  - libs/runtime-adapters/**
   - libs/runtime-manifest/**
   - agents/**
-  - examples/agents/**
+  - adapters/**
+  - apps/adapters/**
+  - apps/worker/src/shipped-agents.ts
   - manifests/**
-  - fixtures/**
+  - scenarios/**
   - scripts/dev-once/**
-  - libs/synapse-fixtures/**
-  - apps/worker/src/manifest-registry.ts
 ---
 
 # Agents and adapters
 
 ## Purpose
 
-Clarify who owns capability behavior versus external system I/O, and how **runtime manifests** connect agent packages to the worker.
+Clarify who owns capability behavior versus external system I/O, and how **runtime manifests**, **shipped definitions**, and **scenarios** connect agent packages to the worker.
 
 ## Mental Model
 
-- **Agent** — bounded capability: emits and reacts to semantic events; may depend on adapters and other agents.
-- **Adapter** — talks to an external system with a Zod config schema; performs IO, not business policy.
-- **Manifest** — declarative wiring: which agents load, which event types each handles (`handles`), and which handler module path to import.
-- **Fixture contract** — versioned, named proof of one agent journey: `*.fixture.json` (webhook ingress + optional `expect`), payload files, manifest `agents[].fixtures` paths, and the same contracts in `runDevOnce` tests. Fixtures are contracts alongside event types in `runtime-events`, not informal test data.
+- **Agent** — bounded capability: emits and reacts to semantic events; invokes adapters through **`ctx.adapters`** when external IO is needed.
+- **Adapter source** — vendor boundary: `defineAdapterSource` in `adapters/*`, composed in `apps/adapters/src/shipped-adapters.ts`, invoked via HTTP RPC from the worker.
+- **Manifest** — mount list: agent names, webhook/poll sources, adapter source ids, scenario file paths.
+- **Agent definition** — `defineAgent({ name, handles, usesAdapters?, run })` in the agent package; listed in `apps/worker/src/shipped-agents.ts`.
+- **Scenario** — versioned proof of one journey: ingress source + payload files + optional adapter FIFO mocks; declares `manifests[]` for discovery.
 
 ## How It Works
 
-At worker startup, `loadValidatedManifestRegistry` reads JSON (default `manifests/application.json`), validates agent names and event types against `libs/runtime-events`, resolves handler paths under the repo root, and builds a runtime registry. Planning matches `event.type` to manifest `handles`; execution invokes the handler default export with `AgentContext`.
+At worker startup, `loadValidatedManifestRegistry` reads JSON (default `manifests/application.json`), validates mounted agent names against `shippedAgents`, validates each definition’s `handles` against `knownEventTypes`, checks `usesAdapters` against manifest `adapters[]`, and builds the runtime registry. Planning matches `event.type` to definition `handles`; execution calls `definition.run(ctx, event)` with reactor name **`handler`**.
 
-Handler modules use `defineAgentHandler` to Zod-parse `event.data` before business logic. Ingress (webhooks or tests) emits the first signal; the manifest does not contain ingress code—only subscriptions.
+Handler modules use `defineAgentHandler` to Zod-parse `event.data` before business logic. Ingress (webhooks or tests) emits the first signal; the manifest only mounts routes and lists scenario files.
 
-**Fixture contracts** tie HTTP-shaped and harness-shaped verification to the same files:
+**Scenario contracts** tie CLI and tests to the same ingress story:
 
 | Layer | Location | Role |
 | --- | --- | --- |
-| Fixture JSON | `fixtures/<agent>/*.fixture.json` or `examples/fixtures/` | `id`, webhook `ingress`, optional `expect` |
-| Payload | Path in `ingress.body.file` | Authoritative JSON/Markdown bodies |
-| Session | `manifests/*.json` → `agents[].fixtures` | Which fixture files are valid for `npm run dev:once -- --list` |
-| Adapters | Manifest `adapterFixtures` + agent bootstrap | Hermetic Pi/GitLab responses without live APIs |
+| Scenario file | `scenarios/**/*.scenarios.json` | `id`, `ingress`, optional `adapters[]`, `terminalEventTypes` |
+| Payload | `ingress.fixtures[].file` | Authoritative JSON/Markdown bodies under `fixtures/` or `examples/fixtures/` |
+| Session | `manifests/*.json` `name` + scenario `manifests[]` | Which scenario ids appear in `dev:once --list` |
+| Adapter mocks | Scenario `adapters[]` | Hermetic GitLab (and similar) responses during `dev:once` without live APIs |
 
-Adding an HTTP-capable agent means adding or extending these contracts, not only a handler module.
+Adapters are defined with **`defineAdapterSource`** in `adapters/adapter-*` and registered in **`shipped-adapters.ts`**. Agents call **`ctx.adapters.invoke`** with typed contracts from `adapter-*/` default exports — not live clients or `/definition` imports in handler code.
 
-Adapters are defined with `defineAdapter` and validated by `createRuntimeRegistry` / manifest wrapping where applicable. Agents invoke adapters through typed clients configured in the agent handler (e.g. `agent-reviewer` reads `adapterFixtures` from the manifest).
-
-See [Runtime manifest](../reference/runtime-manifest.md) and [Agent reference](../reference/agents.md).
+See [Runtime manifest](../reference/runtime-manifest.md), [Create an adapter](../how-to/create-an-adapter.md), and [Agent reference](../reference/agents.md).
 
 ## Application vs example agents
 
@@ -57,8 +57,7 @@ See [Runtime manifest](../reference/runtime-manifest.md) and [Agent reference](.
 | Directory | `agents/agent-<name>/` | `examples/agents/example-agent-<name>/` |
 | Default `npm run dev` | `manifests/application.json` | Not loaded |
 | Typical manifest | `manifests/application.json` | `manifests/examples/<name>.json` |
-| Webhook route set | `application` | `examples` |
-| Webhook fixtures | `npm run dev:once` (after default dev) | Same CLI — start dev with example manifest first |
+| Scenarios | `npm run dev:once` after default dev | Same — start dev with example manifest first |
 
 Example agents teach patterns and regression coverage; application agents ship product capability (today: `agent-reviewer`). **SQLite-backed examples** load when their manifest lists them; they use `SYNAPSE_AGENT_SQLITE_DIR` like production (see [Environment](../reference/environment.md)).
 
@@ -66,20 +65,20 @@ Example agents teach patterns and regression coverage; application agents ship p
 
 ```bash
 npm run dev:example
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario example/echo
 ```
 
 ## Boundaries
 
 - Adapters must not emit semantic runtime events directly.
-- Agents must not bypass adapter boundaries for external mutations.
-- Example agents must not appear in `manifests/application.json`.
-- Do not add new `registered-*-agents.ts` files or `defineAgent` / `defineReactor` registration for shipped agents.
+- Agents must not import `adapter-*/definition` or perform vendor HTTP/SDK calls outside `ctx.adapters`.
+- Example agents must not appear in `manifests/application.json` unless intentional.
+- Do not add handler paths or `handles` to manifest JSON — use `defineAgent` + `shipped-agents.ts`.
 
 ## Trade-Offs
 
-- Manifest + registry validation trades startup strictness for safer refactors and a single place to see what runs locally.
-- Dynamic handler import keeps worker code stable while agent packages evolve.
+- Shipped definitions + manifest validation trades startup strictness for safer refactors and a single composition root per app.
+- Scenario-owned ingress keeps `dev:once` aligned with manifest mounts without duplicating route metadata on agents.
 
 ## Related Reference
 

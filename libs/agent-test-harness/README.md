@@ -45,6 +45,8 @@ describe.skipIf(!integrationInfraAvailable)('my agent e2e', () => {
 });
 ```
 
+When loading a manifest, pass `shippedAgents` and `knownEventTypes` from the app composition root (e.g. `apps/worker/src/shipped-agents.ts` and `Object.keys(eventRegistry)`), not from defaults inside this library. Pass manifest-specific flags via `env` (e.g. `AGENT_REVIEWER_HERMETIC=1` for reviewer manifests); the harness does not import application agents.
+
 Requires local Postgres and Redis (`npm run dev:infra`). See `examples/agents/example-agent-echo/test/integration/echo-dev-once.e2e.test.ts` and `examples/agents/example-agent-notifier/test/integration/notifier.e2e.test.ts`.
 
 Example agent packages are included in `npx nx run-many -t test --all` like application agents.

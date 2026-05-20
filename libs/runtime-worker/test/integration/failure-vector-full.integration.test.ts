@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import {
   agentRunId,
   appendEvent,
@@ -457,7 +457,7 @@ describe.skipIf(!integrationAvailable)(
     it('failed_run_succeeds_after_requeueFailedAgentRun', async () => {
       let failRun = true;
       await withIsolatedStreamsStore(async (ctx) => {
-        const togglingAgent = defineAgent({
+        const togglingAgent = defineRegistryAgent({
           name: 'toggle-fail',
           reactors: [
             defineReactor({
@@ -521,7 +521,7 @@ describe.skipIf(!integrationAvailable)(
     it('failed_run_succeeds_when_legacy_failed_bull_job_blocks_same_job_id', async () => {
       let failRun = true;
       await withIsolatedStreamsStore(async (ctx) => {
-        const togglingAgent = defineAgent({
+        const togglingAgent = defineRegistryAgent({
           name: 'legacy-fail',
           reactors: [
             defineReactor({
@@ -597,7 +597,7 @@ describe.skipIf(!integrationAvailable)(
 
     it('reactor_throw_before_emit_marks_failed_without_output_event', async () => {
       await withIsolatedStreamsStore(async (ctx) => {
-        const failAgent = defineAgent({
+        const failAgent = defineRegistryAgent({
           name: 'fail-agent',
           reactors: [
             defineReactor({
@@ -640,7 +640,7 @@ describe.skipIf(!integrationAvailable)(
 
     it('reactor_throw_after_emit_keeps_output_and_manual_retry_dedupes', async () => {
       await withIsolatedStreamsStore(async (ctx) => {
-        const throwAfterAgent = defineAgent({
+        const throwAfterAgent = defineRegistryAgent({
           name: 'throw-after',
           reactors: [
             defineReactor({
@@ -697,7 +697,7 @@ describe.skipIf(!integrationAvailable)(
 
     it('slow_reactor_renews_lease_and_succeeds', async () => {
       await withIsolatedStreamsStore(async (ctx) => {
-        const slowAgent = defineAgent({
+        const slowAgent = defineRegistryAgent({
           name: 'slow-agent',
           reactors: [
             defineReactor({
@@ -822,7 +822,7 @@ describe.skipIf(!integrationAvailable)('failure vector: ctx.emit', () => {
         reactorName: 'double-emit',
       });
       const registry = createRuntimeRegistry([
-        defineAgent({
+        defineRegistryAgent({
           name: 'example-echo',
           reactors: [
             defineReactor({
@@ -874,7 +874,7 @@ describe.skipIf(!integrationAvailable)('failure vector: ctx.emit', () => {
         reactorName: 'no-ext',
       });
       const registry = createRuntimeRegistry([
-        defineAgent({
+        defineRegistryAgent({
           name: 'example-echo',
           reactors: [
             defineReactor({
@@ -922,7 +922,7 @@ describe.skipIf(!integrationAvailable)('failure vector: ctx.emit', () => {
         reactorName: 'emit-no-subject',
       });
       const registry = createRuntimeRegistry([
-        defineAgent({
+        defineRegistryAgent({
           name: 'example-echo',
           reactors: [
             defineReactor({
@@ -954,7 +954,7 @@ describe.skipIf(!integrationAvailable)(
   () => {
     it('runtime_does_not_require_global_ordering', async () => {
       await withIsolatedStreamsStore(async (ctx) => {
-        const slowAgent = defineAgent({
+        const slowAgent = defineRegistryAgent({
           name: 'slow-agent',
           reactors: [
             defineReactor({
@@ -971,7 +971,7 @@ describe.skipIf(!integrationAvailable)(
             }),
           ],
         });
-        const fastAgent = defineAgent({
+        const fastAgent = defineRegistryAgent({
           name: 'fast-agent',
           reactors: [
             defineReactor({
@@ -1024,7 +1024,7 @@ describe.skipIf(!integrationAvailable)(
 
     it('follow_up_event_can_trigger_before_parent_run_success_is_observed', async () => {
       await withIsolatedStreamsStore(async (ctx) => {
-        const chainAgent = defineAgent({
+        const chainAgent = defineRegistryAgent({
           name: 'chain-agent',
           reactors: [
             defineReactor({
@@ -1077,7 +1077,7 @@ describe.skipIf(!integrationAvailable)(
         const worker = await bootstrapTestWorker({
           ...ctx,
           agents: [
-            defineAgent({
+            defineRegistryAgent({
               name: 'bad-shape',
               reactors: [
                 defineReactor({
@@ -1119,7 +1119,7 @@ describe.skipIf(!integrationAvailable)(
         const worker = await bootstrapTestWorker({
           ...ctx,
           agents: [
-            defineAgent({
+            defineRegistryAgent({
               name: 'emitter',
               reactors: [
                 defineReactor({
@@ -1162,7 +1162,7 @@ describe.skipIf(!integrationAvailable)(
 
     it('reactor_self_loop_with_same_external_id_dedupes_after_one_emit', async () => {
       await withIsolatedStreamsStore(async (ctx) => {
-        const loopAgent = defineAgent({
+        const loopAgent = defineRegistryAgent({
           name: 'loop-agent',
           reactors: [
             defineReactor({
@@ -1210,7 +1210,7 @@ describe.skipIf(!integrationAvailable)(
         const worker = await bootstrapTestWorker({
           ...ctx,
           agents: [
-            defineAgent({
+            defineRegistryAgent({
               name: 'fail-agent',
               reactors: [
                 defineReactor({

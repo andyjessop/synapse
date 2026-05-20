@@ -1,16 +1,11 @@
+export { assertDevWipeAllowed } from './assert-dev-wipe-allowed.js';
 export {
   compareRunGraphTimelineItems,
   type RunGraphTimelineItem,
 } from './compare-run-graph-timeline.js';
 export { compareSynapseEventsForTimeline } from './compare-synapse-events-for-timeline.js';
 export { DEV_RUN_GRAPH_EVENT_LIMIT } from './dev-run-graph-limit.js';
-export {
-  type DevSession,
-  devSessionFilePath,
-  devSessionSchema,
-  readDevSession,
-  writeDevSession,
-} from './dev-session.js';
+export { drainReactorQueue } from './drain-reactor-queue.js';
 export {
   formatRunRecordFlow,
   formatRunRecordSummary,
@@ -27,6 +22,7 @@ export {
   resetFailedAgentRunsForRoot,
   retryDevFailedRunsOnRoot,
 } from './reset-dev-failed-runs.js';
+export { resolveDevOnceManifestPath } from './resolve-dev-once-manifest.js';
 export {
   findLatestDevRunSnapshotRelativePath,
   waitForLatestDevRunSnapshotRelativePath,
@@ -55,7 +51,14 @@ export {
   devOnceRunRecordSchema,
 } from './run-record.js';
 export {
+  killSynapseDevProcessPids,
+  listSynapseDevProcesses,
+  type SynapseDevProcess,
+  stopOrphanSynapseWorkers,
+} from './synapse-dev-processes.js';
+export {
   type RootGraphWaitOutcome,
   selectFailedRunOnRoot,
   waitForRootGraphOutcome,
 } from './wait-root-graph.js';
+export { wipeDevRuntime } from './wipe-dev-runtime.js';

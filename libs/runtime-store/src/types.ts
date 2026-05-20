@@ -10,6 +10,8 @@ export type AppendEventInput = {
   data: unknown;
   rootId?: string;
   parentId?: string;
+  traceparent?: string;
+  tracestate?: string;
 };
 
 export type EnsureAgentRunInput = {
@@ -57,8 +59,14 @@ export type RuntimeStore = {
     error: unknown,
     failureDetail?: RunFailureDetail,
   ): Promise<void>;
+  /** Return a claimed run to `pending` so another worker can execute it. */
+  releaseRunForOtherWorker(runId: string): Promise<boolean>;
   repairStaleRuns(): Promise<void>;
   loadEvent(eventId: string): Promise<SynapseEvent>;
+  loadInputEventTraceForRun(runId: string): Promise<{
+    traceparent?: string;
+    tracestate?: string;
+  }>;
 };
 
 export type EventRecord = SynapseEvent;

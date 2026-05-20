@@ -1,4 +1,4 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import {
   AgentSqliteRuntimeError,
   computeNormalizedMigrationSqlHash,
@@ -78,7 +78,7 @@ describe('executeRun sqlite failure_detail', () => {
       one: vi.fn(),
     });
     const registry = createRuntimeRegistry([
-      defineAgent({
+      defineRegistryAgent({
         name: 'sqlite-agent',
         sqlite: { migrations: [migration001] },
         reactors: [
@@ -115,7 +115,7 @@ describe('executeRun sqlite failure_detail', () => {
 
   it('does not invent failure_detail for generic handler errors on sqlite agents', async () => {
     const registry = createRuntimeRegistry([
-      defineAgent({
+      defineRegistryAgent({
         name: 'sqlite-agent',
         sqlite: { migrations: [migration001] },
         reactors: [

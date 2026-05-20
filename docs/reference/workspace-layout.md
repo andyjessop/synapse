@@ -3,13 +3,16 @@ title: Workspace layout
 kind: reference
 owner: repo
 status: current
-updated: 2026-05-17
+updated: 2026-05-21
 freshness_triggers:
   - package.json
   - apps/**
   - libs/**
   - agents/**
+  - adapters/**
   - examples/agents/**
+  - scenarios/**
+  - manifests/**
 ---
 
 # Workspace layout
@@ -27,11 +30,14 @@ Nx discovers projects from workspace `package.json` files. All npm dependencies 
 | Path | Role |
 | --- | --- |
 | `agents/` | Application capability agents (`agent-reviewer`, …) |
+| `adapters/` | Adapter source packages (`adapter-gitlab`, …) |
 | `examples/agents/` | Example/curriculum agents (`example-agent-*`) |
-| `examples/fixtures/` | Static fixtures for example agents |
-| `apps/` | Runnable applications (`worker`, `webhooks`) |
+| `examples/fixtures/` | Static payloads for example agents |
+| `scenarios/` | Run-loop `*.scenarios.json` for `dev:once` |
+| `manifests/` | Runtime manifest JSON (agent mounts, ingress, scenarios) |
+| `apps/` | Runnable applications (`worker`, `ingress`, `adapters`) |
 | `libs/` | Shared libraries (`runtime-*`, `agent-test-harness`, `pi`) |
-| `fixtures/` | Shared static **fixture contracts** (`*.fixture.json`, payloads, e2e, adapters) |
+| `fixtures/` | Shared static payloads and adapter stub JSON |
 | `docs/` | Canonical Diataxis documentation |
 | `specs/` | Implementation specifications (not user manual) |
 | `scripts/` | Dev orchestration (`dev.ts`, `dev-once.ts`), docs-check |

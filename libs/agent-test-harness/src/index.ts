@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { AgentDefinition } from 'runtime-agent';
+import type { AgentDefinition, RegistryAgentDefinition } from 'runtime-agent';
 import { closeAllAgentSqliteHandles } from 'runtime-agent-sqlite';
 import { getRepoRoot } from 'runtime-config';
 import {
@@ -8,7 +8,7 @@ import {
 } from 'runtime-manifest';
 import type { RuntimePool, RuntimeStore } from 'runtime-store';
 import { wrapManifestRuntimeRegistry } from 'runtime-worker';
-
+import { validateScenarioForManifest } from 'synapse-scenarios';
 import {
   bootstrapTestWorker,
   probeIntegrationInfra,
@@ -56,11 +56,7 @@ export type AgentE2eContext = {
   fixturePath: (repoRelativePath: string) => string;
 };
 
-export type RunAgentE2eInput = {
-  /** Build legacy agent definitions when not using `manifestPath`. */
-  createAgents?: (ctx: { repoRoot: string }) => AgentDefinition[];
-  /** Repo-relative manifest path (e.g. `manifests/application.json`). */
-  manifestPath?: string;
+type RunAgentE2eBase = {
   run: (ctx: AgentE2eContext) => Promise<void>;
   /** When set, the worker runs `executeRun` with SQLite (same as production worker). */
   agentSqlite?: {
@@ -69,6 +65,25 @@ export type RunAgentE2eInput = {
     migrationMaxMsPerMigration?: number;
   };
 };
+
+export type RunAgentE2eManifestInput = RunAgentE2eBase & {
+  manifestPath: string;
+  shippedAgents: ReadonlyMap<string, AgentDefinition>;
+  knownEventTypes: ReadonlySet<string>;
+  createAgents?: never;
+};
+
+export type RunAgentE2eLegacyInput = RunAgentE2eBase & {
+  manifestPath?: undefined;
+  /** Build legacy agent definitions when not using `manifestPath`. */
+  createAgents?: (ctx: { repoRoot: string }) => RegistryAgentDefinition[];
+  shippedAgents?: never;
+  knownEventTypes?: never;
+};
+
+export type RunAgentE2eInput =
+  | RunAgentE2eManifestInput
+  | RunAgentE2eLegacyInput;
 
 /**
  * Spins up an isolated Postgres schema, Redis, and runtime worker with the given
@@ -87,7 +102,10 @@ export async function runAgentE2e(input: RunAgentE2eInput): Promise<void> {
       const loaded = await loadValidatedManifestRegistry({
         repoRoot,
         manifestPath: absManifest,
+        shippedAgents: input.shippedAgents,
+        knownEventTypes: input.knownEventTypes,
         env: process.env,
+        validateScenarioForManifest,
       });
       registry = wrapManifestRuntimeRegistry(loaded.registry);
     }

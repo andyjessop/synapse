@@ -3,34 +3,34 @@ title: Runtime manifest
 kind: reference
 owner: runtime-agent
 status: current
-updated: 2026-05-20
+updated: 2026-05-21
 freshness_triggers:
   - manifests/**
   - libs/runtime-manifest/**
   - libs/runtime-agent/**
   - apps/worker/src/manifest-registry.ts
+  - apps/worker/src/shipped-agents.ts
   - scripts/dev.ts
   - scripts/dev-once/**
-  - libs/synapse-fixtures/**
-  - .synapse/dev-session.json
+  - libs/synapse-scenarios/**
+  - scenarios/**
 ---
 
 # Runtime manifest
 
 ## Scope
 
-Authoritative reference for **JSON runtime manifests**: how the worker discovers agents, which event types each agent handles, how handler modules are loaded, and how local development (`npm run dev`, `npm run dev:once`) stays aligned with a single manifest per session.
+Authoritative reference for **JSON runtime manifests**: which agents and adapters are **mounted** in a session, which webhook routes and poll sources ingress exposes, and which **scenario files** `dev:once` may run. Agent **definitions** (handles, handler wiring, `usesAdapters`) live in code; the manifest only lists names and mounts.
 
-Implementation package: `libs/runtime-manifest`. Product spec background: `specs/manifest.md`.
+Implementation package: `libs/runtime-manifest`. Background: `specs/tidying.md`, `specs/scenario-owned-ingress.md`.
 
 ## Contract
 
-- Manifest JSON is the **only** shipped registration path for application agents.
-- Each agent entry: `name`, `handler` (repo-relative path), `handles` (event types from `runtime-events`).
-- Handler modules default-export `defineAgentHandler` or an equivalent async function.
-- Worker validates at startup; invalid manifests block the process.
-- Planner reactor name for manifest agents is always **`handler`**.
-- `npm run dev` writes `.synapse/dev-session.json`; `npm run dev:once` does not accept `--manifest`.
+- Manifest JSON is the session **mount list** for agents, adapters, ingress surfaces, and scenario discovery paths.
+- Each `agents[]` entry is **`{ "name": "<agent-name>" }` only** — no `handler`, `handles`, or `adapterFixtures` in JSON.
+- Shipped agent definitions are composed in **`apps/worker/src/shipped-agents.ts`** (`defineAgent` exports from `agent-*/definition`).
+- Worker validates at startup: mounted agent names must exist in `shippedAgents`; each definition’s `handles` must exist in `knownEventTypes` (from `eventRegistry`, passed by the worker).
+- `npm run dev` defaults to `manifests/application.json` (`application-default`); override with `--manifest`. `npm run dev:once` uses the same default and accepts `--manifest` to match the worker.
 
 ## Details
 
@@ -38,30 +38,41 @@ Implementation package: `libs/runtime-manifest`. Product spec background: `specs
 
 | Concept | Lives in | Does not live in |
 | --- | --- | --- |
-| **Agent name** | Manifest `agents[].name` | npm package name (related but not identical) |
-| **Subscriptions** (`handles`) | Manifest JSON | Handler TypeScript |
-| **Handler implementation** | Agent package module (`handler` path) | Manifest JSON (beyond the path string) |
-| **Ingress** (first signal) | `apps/webhooks` routes + agent `ingress.ts` | Manifest (except optional `webhooks` hints for dev) |
-| **Event contracts** | `libs/runtime-events` registry | Handler-local schemas (must match operationally) |
+| **Agent identity & subscriptions** | `defineAgent({ name, handles, usesAdapters?, run })` in `*-agent.definition.ts` | Manifest JSON |
+| **Handler implementation** | Default-export function (usually `defineAgentHandler`) referenced by `run` | Manifest JSON |
+| **Agent mount** | Manifest `agents[].name` | npm package name alone (related but not identical) |
+| **Adapter source** | `defineAdapterSource` in `adapters/*`, listed in `apps/adapters/src/shipped-adapters.ts` | Manifest beyond `adapters[].source` mount |
+| **Ingress (first signal)** | `apps/ingress` + optional `ingress.ts` in agent packages | Manifest (except `webhooks` / `pollers` mount hints) |
+| **Dev proof stories** | `scenarios/**/*.scenarios.json` with `manifests[]` | Per-agent `fixtures` arrays on manifest agents |
+| **Event contracts** | `libs/runtime-events` registry | Handler-local Zod only (operational shapes) |
 
 ```text
-manifest.json
-  agents[].name          → agent_runs.agent_name
-  agents[].handles[]     → planning: event.type → which agents run
-  agents[].handler       → dynamic import → default export (ctx, event) => …
+agent-reviewer/definition.ts
+  defineAgent({ name, handles, usesAdapters, run: reviewPrHandler })
 
-handler module
-  defineAgentHandler(schema, fn)  → Zod-validates event.data, then business logic
-  ingress.ts (optional)           → ctx.emit first signal (webhooks or tests)
+apps/worker/src/shipped-agents.ts
+  shippedAgentsByName → passed to loadValidatedManifestRegistry
+
+manifests/application.json
+  agents: [{ "name": "agent-reviewer" }]
+  adapters: [{ "source": "synapse.adapters.gitlab.v1" }]
+  webhooks: [{ "source": "synapse.webhooks.prs.v1" }]
+
+scenarios/agent-reviewer/….scenarios.json
+  scenarios[].manifests: ["application-default", …]
+
+loadValidatedManifestRegistry
+  resolve definition by name → registry.findAgentsForEvent(handle)
+  reactor name: "handler"
 ```
 
-The worker **never** reads `defineAgent` / `defineReactor` registration modules. Those patterns are removed from application agents and are not part of the shipped registration path.
+The worker does **not** dynamically import handler paths from the manifest. Example curriculum packages may still use legacy `defineRegistryAgent` / `defineReactor` in tests; that path is not the shipped product model.
 
 ### Manifest file format
 
 - **Format:** JSON, extension `.json`
 - **Version:** top-level `version` must be literal `1`
-- **Schema:** top-level `schema` must be `libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json` (`MANIFEST_SCHEMA_PATH` in `runtime-manifest`)
+- **Schema:** top-level `schema` must be `libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json` (`MANIFEST_SCHEMA_PATH`)
 - **Default path:** `manifests/application.json` (repo root)
 - **Strict keys:** unknown top-level or agent-level keys fail validation (Zod `.strict()`)
 
@@ -71,128 +82,138 @@ The worker **never** reads `defineAgent` / `defineReactor` registration modules.
 | --- | --- | --- |
 | `version` | yes | Must be `1` |
 | `schema` | yes | Repo-root-relative JSON Schema path for this manifest document |
-| `name` | yes | Human/session id for this configuration (logs, dev session) |
-| `description` | no | Documentation only; runtime ignores except optional logs |
-| `agents` | yes | Non-empty array of agent entries |
-| `webhooks` | no | Local dev hint: which HTTP route set `apps/webhooks` mounts |
+| `name` | yes | Human/session id (logs, dev session) |
+| `description` | no | Documentation only |
+| `agents` | yes | Non-empty array of `{ "name": string }` mounts |
+| `webhooks` | no | `{ "source": "<WebhookRouteId>" }[]` — routes `apps/ingress` mounts |
+| `pollers` | no | Poll source mounts (`source`, optional `intervalMs`, `enabled`, `params`) |
+| `adapters` | no | `{ "source": "<adapter-source-id>" }[]` — sources that must be registered in `apps/adapters` at invoke time |
 
 ### Agent entry (`agents[]`)
 
-Each entry has **exactly** these fields in shipped scope:
+Each entry has **exactly** one field:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `name` | string | Runtime agent name (used in `agent_runs`, metrics, `ctx.agentName`) |
-| `handler` | string | Repo-root-relative POSIX path to a `.ts` module |
-| `handles` | string[] | Event types this agent plans runs for (non-empty) |
-| `fixtures` | object (optional) | `{ webhook: string[], adapter: string[] }` — repo-root-relative fixture paths for `dev:once --list` and local adapter mocks |
+| `name` | string | Must match a `defineAgent({ name })` export in `apps/worker/src/shipped-agents.ts` |
 
-**Not supported in shipped scope:** `module`, `emits`, `usesAdapters`, `usesAgents`, `enabled`, named export symbols, or per-agent webhook config.
+**Not supported on manifest agents:** `handler`, `handles`, `module`, `emits`, `adapterFixtures`, `fixtures`, `enabled`, or any other keys.
 
-### `webhooks` (optional, local dev)
+Handles and `usesAdapters` are validated from the **shipped definition** at load time. Unknown `handles` event types fail when `knownEventTypes` does not include them.
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `routes` | string[] | Stable webhook route ids from `libs/runtime-manifest/src/webhook-route-catalog.ts` (e.g. `synapse.webhooks.prs.v1`). `apps/webhooks` mounts only these routes (Hono + OpenAPI). |
+### `webhooks` (optional)
 
-Fixture discovery uses **`agents[].fixtures`** only. Each fixture file is validated by `synapseFixtureSchema` (`libs/synapse-fixtures`). Fixture `ingress.method` + `ingress.path` must match a route listed in `webhooks.routes` (via the catalog).
+Array of `{ "source": "<WebhookRouteId>" }`. Catalog ids: `libs/runtime-manifest/src/webhook-route-catalog.ts`. `apps/ingress` mounts only listed sources.
 
-### Fixture contracts (first-class)
+### `pollers` (optional)
 
-| Fixture field | Contract meaning |
+Array of `{ "source": "<PollSourceId>", "intervalMs"?, "enabled"?, "params"? }`. Catalog: `libs/runtime-manifest/src/poll-source-catalog.ts`.
+
+### `adapters` (optional)
+
+Array of `{ "source": string }` where `source` matches `synapse.adapters.{family}.v{N}`. Scenario `adapters[]` entries must be mounted here when scenarios use adapter FIFO mocks.
+
+### Scenarios (`scenarios/**/*.scenarios.json`)
+
+Scenarios are **not** listed on the manifest. Each scenario file declares which manifests may run it via **`manifests[]`** (must include the runtime manifest **`name`**). `dev:once --list` scans `scenarios/**/*.scenarios.json` and shows scenarios whose `manifests` includes the active session manifest.
+
+| Field | Purpose |
 | --- | --- |
-| `id` | Stable name for `npm run dev:once -- --fixture <id>` |
-| `agent` | Owning manifest agent `name` |
-| `ingress` | Webhook POST: `method`, `path`, optional `headers`, `body.file` or inline body |
-| `expect` | Optional smoke metadata (`rootEventType`, `terminalEventTypes`) for wait/verify |
+| `id` | CLI id for `npm run dev:once -- --scenario <id>` (alias `--fixture`) |
+| `manifests` | Manifest `name` values this scenario is valid for (e.g. `application-default`) |
+| `ingress.source` | Webhook route id or poll source id (must be mounted on manifest) |
+| `ingress.fixtures` | One or more repo-root-relative payload files for multi-step runs |
+| `terminalEventTypes` | Optional wait targets for `dev:once` |
+| `adapters` | Optional ingress-only adapter mocks for `apps/adapters` scenario FIFO |
 
-Changing a payload file, ingress path, or expected terminal types without updating the fixture JSON, manifest paths, and tests is a contract break.
+Per-agent `*.fixture.json` paths on `agents[]` are **not** supported; use scenario files instead.
 
 ### Shipped manifests
 
-| File | `name` | Agents | `webhooks.routes` | Typical use |
-| --- | --- | --- | --- | --- |
-| `manifests/application.json` | `application-default` | `agent-reviewer` → `pr.received.v1` | `synapse.webhooks.prs.v1` | Default `npm run dev` |
-| `manifests/examples/echo.json` | `example-echo` | `example-echo` → `example.ping.v1` | `synapse.webhooks.example-echo-ping.v1` | Echo tutorial / curriculum |
-| `manifests/examples/all.json` | `examples-all-fixtures` | `example-echo` only | echo + notifier routes | Echo manifest with `agents[].fixtures` |
-| `manifests/debug/reviewer-only.json` | `debug-reviewer-only` | `agent-reviewer` only | `synapse.webhooks.prs.v1` | Narrow debugging |
+| File | `name` | Agents (mount) | Typical use |
+| --- | --- | --- | --- |
+| `manifests/application.json` | `application-default` | `agent-reviewer` | Default `npm run dev` |
+| `manifests/examples/echo.json` | `example-echo` | `example-echo` | Echo tutorial |
+| `manifests/examples/echo-poll.json` | `example-echo-poll` | `example-echo` | Poll curriculum |
+| `manifests/debug/reviewer-only.json` | `debug-reviewer-only` | `agent-reviewer` | Narrow debugging |
 
 Example `manifests/application.json`:
 
 ```json
 {
   "version": 1,
+  "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
   "name": "application-default",
-  "agents": [
-    {
-      "name": "agent-reviewer",
-      "handler": "agents/agent-reviewer/src/review-pr-agent.ts",
-      "handles": ["pr.received.v1"],
-      "fixtures": [
-        "fixtures/agent-reviewer/review-pr-gitlab-synapse.fixture.json"
-      ]
-    }
-  ],
-  "webhooks": {
-    "routes": ["synapse.webhooks.prs.v1"]
-  }
+  "agents": [{ "name": "agent-reviewer" }],
+  "webhooks": [{ "source": "synapse.webhooks.prs.v1" }],
+  "adapters": [{ "source": "synapse.adapters.gitlab.v1" }]
 }
 ```
 
-### Handler module contract
+Example scenario binding (`scenarios/agent-reviewer/review-pr-gitlab-synapse.scenarios.json`):
 
-### Path rules (`handler`)
+```json
+{
+  "scenarios": [
+    {
+      "id": "review-pr/gitlab-synapse",
+      "manifests": ["application-default", "debug-reviewer-only"],
+      "ingress": { "source": "synapse.webhooks.prs.v1", "fixtures": [{ "file": "fixtures/…" }] }
+    }
+  ]
+}
+```
 
-- Repo-root-relative POSIX path (e.g. `agents/agent-reviewer/src/review-pr-agent.ts`)
-- **Allowlist prefix:** `agents/` or `examples/agents/`
-- **Forbidden:** `..` segments
-- Target file must exist
-- **Default export** must be a **function** `(ctx, event) => Promise<void>`
+Example `manifests/examples/echo.json`:
 
-Optional escape hatch (local only): `SYNAPSE_ALLOW_LOCAL_MANIFEST_IMPORTS=1` — see `libs/runtime-manifest/README.md`.
+```json
+{
+  "version": 1,
+  "schema": "libs/runtime-manifest/schemas/manifest/runtime.v1.schema.json",
+  "name": "example-echo",
+  "agents": [{ "name": "example-echo" }],
+  "webhooks": [{ "source": "synapse.webhooks.example-echo-ping.v1" }]
+}
+```
 
-### Handler function shape
+### Agent definition (`defineAgent`)
 
-Exported from `runtime-agent`:
-
-- `AgentContext` — `agentName`, `input`, `run`, `emit`, optional `db` / `requireDb()`
-- `AgentHandler` — `(ctx: AgentContext, event: SynapseEvent) => Promise<void>`
-- `defineAgentHandler(eventDataSchema, fn)` — parses `event.data` with handler-local Zod before your logic
-
-**Preferred pattern:**
+Shipped in each agent package (e.g. `agents/agent-reviewer/src/review-pr-agent.definition.ts`):
 
 ```ts
-import { defineAgentHandler } from 'runtime-agent';
-import { z } from 'zod';
+import { defineAgent } from 'runtime-agent';
+import runReviewPrAgent from './review-pr-agent.js';
 
-const myEventDataSchema = z.object({ /* handler-local fields */ }).strict();
-
-export default defineAgentHandler(myEventDataSchema, async (ctx, event) => {
-  // event.data is z.infer<typeof myEventDataSchema>
+export const reviewPrAgent = defineAgent({
+  name: 'agent-reviewer',
+  handles: ['pr.received.v1'],
+  usesAdapters: ['synapse.adapters.gitlab.v1'],
+  run: runReviewPrAgent,
 });
 ```
 
-**Rules:**
+`apps/worker/src/shipped-agents.ts` imports `reviewPrAgent` from `agent-reviewer/definition` and builds `shippedAgentsByName`.
 
-- Do **not** import Zod schemas from `runtime-events` into handlers (operational shapes may diverge; keep handler-local schemas).
-- Do **not** put `handles` or subscription lists in the handler file.
-- Do **not** default-export objects with a `run` property.
-- Handlers must **not** import MQTT, BullMQ, Redis, or HTTP frameworks.
+**Handler module** (e.g. `review-pr-agent.ts`) still default-exports `defineAgentHandler(schema, fn)` or an equivalent `AgentHandler`. Rules unchanged:
+
+- Handler-local Zod for `event.data` (do not import registry schemas into handlers).
+- External IO via **`ctx.adapters.invoke`** (not adapter `/definition` or live clients in agents).
+- No MQTT, BullMQ, Redis, or HTTP frameworks in handlers.
 
 ### Run identity (`agent_runs`)
 
-Manifest agents use a fixed planner reactor name: **`handler`** (constant `MANIFEST_HANDLER_REACTOR_NAME` in `runtime-manifest`). Outcome events may still use fixed labels in payloads (e.g. `reviewer.reactor: 'review-pr'` in `pr.reviewed.v1`) where the event registry requires it.
+Planner reactor name is always **`handler`** (`MANIFEST_HANDLER_REACTOR_NAME`). Outcome payloads may use domain-specific reactor labels where the event registry requires them.
 
 ### Validation (fail fast at worker startup)
 
-Before BullMQ processors run, `loadValidatedManifestRegistry` checks:
+`loadValidatedManifestRegistry` checks:
 
 1. JSON matches `runtimeManifestSchema` (strict keys)
 2. No duplicate `agents[].name`
-3. Every `handles` entry exists in `libs/runtime-events` `eventRegistry`
-4. Handler path allowlist + file exists
-5. Default export passes `isAgentHandler`
-6. Each `agents[].fixtures` path exists, parses as `synapseFixtureSchema`, and fixture `ingress.path` matches a route in `webhooks.routes` when webhooks are set
+3. Each mounted name exists in `shippedAgents`
+4. Each definition’s `handles` ⊆ `knownEventTypes`
+5. Each definition’s `usesAdapters` (if any) is mounted in manifest `adapters[]`
+6. Scenarios under `scenarios/` that declare this manifest in `manifests[]`: ingress sources mounted; adapter sources ⊆ manifest `adapters[]`; no duplicate scenario `id` per manifest
 
 Failures prevent worker startup with an explicit error.
 
@@ -201,15 +222,14 @@ Failures prevent worker startup with an explicit error.
 ```text
 apps/worker/src/main.ts
   └── loadWorkerManifestRegistry(env)
-        ├── resolveManifestPath (CLI --manifest, SYNAPSE_RUNTIME_MANIFEST, or default)
-        ├── parseRuntimeManifestFile
-        ├── importAgentHandlerModule (per unique handler path)
-        ├── validateRuntimeManifest
-        └── wrapManifestRuntimeRegistry → createRuntimeRegistry shape
+        ├── resolveManifestPath
+        ├── loadValidatedManifestRegistry({ shippedAgents, knownEventTypes, … })
+        └── wrapManifestRuntimeRegistry
 
-Planning stream (runtime-worker)
+Planning stream
   └── registry.findAgentsForEvent(event.type)
         └── ensureAgentRun(agentName, reactorName: "handler")
+        └── executeRun → definition.run(ctx, event)
 ```
 
 Console on worker and `npm run dev` startup:
@@ -220,105 +240,75 @@ synapse manifest: /absolute/path/to/manifests/application.json
 
 ### Local development
 
-### Choosing a manifest
-
 | Mechanism | Example |
 | --- | --- |
 | Default | `manifests/application.json` when unset |
 | CLI | `npm run dev -- --manifest manifests/examples/echo.json` |
 | Environment | `SYNAPSE_RUNTIME_MANIFEST=manifests/examples/echo.json npm run dev` |
-| Worker only | `npx nx run worker:start` reads `SYNAPSE_RUNTIME_MANIFEST` / default |
 
-**Ignored when manifest is set via `npm run dev`:** `SYNAPSE_WORKER_AGENT_SET`. Webhook routes come from manifest `webhooks.routes`; `apps/webhooks` reads `SYNAPSE_RUNTIME_MANIFEST`.
+**Ignored when manifest is set via `npm run dev`:** `SYNAPSE_WORKER_AGENT_SET`. Webhook and poll mounts come from manifest `webhooks` / `pollers`; ingress reads `SYNAPSE_RUNTIME_MANIFEST`.
 
 ### What `npm run dev` does
 
-1. Resolves and parses the manifest
-2. Sets `SYNAPSE_RUNTIME_MANIFEST` on child processes (webhooks loads `webhooks.routes` from that file)
-3. Writes **`.synapse/dev-session.json`** at repo root
-4. Prints `synapse manifest: …`
-5. Starts Docker infra, worker, webhooks
-
-**`dev-session.json` shape:**
-
-```json
-{
-  "manifest_path": "/abs/path/manifests/application.json",
-  "manifest_name": "application-default",
-  "webhooks": {
-    "routes": ["synapse.webhooks.prs.v1"]
-  }
-}
-```
+1. Resolves and parses the manifest (default `manifests/application.json`)
+2. Sets `SYNAPSE_RUNTIME_MANIFEST` on child processes
+3. Prints `synapse manifest: …`
+4. Starts Docker infra, adapters app, worker, ingress (when mounts require it)
 
 ### `npm run dev:once` (ingress only)
 
-- Does **not** accept `--manifest` or `--examples`
-- Requires an existing dev session (`.synapse/dev-session.json`)
-- `npm run dev:once -- --list` shows fixture `id` values from `agents[].fixtures` on the session manifest
-- `npm run dev:once -- --fixture <id>` POSTs to local webhooks; worker must already run with a matching manifest
+- Defaults to **`manifests/application.json`**; **`--manifest <path>`** overrides for list/run
+- Requires **`npm run dev`** running (same manifest as worker when using `--manifest`)
+- `npm run dev:once -- --list` shows scenario `id` values whose `manifests[]` includes the resolved manifest `name`
+- `npm run dev:once -- --scenario <id>` (alias `--fixture`) runs against local ingress; worker must use a matching manifest
 
 ```bash
 # Terminal 1
 npm run dev -- --manifest manifests/examples/echo.json
 
 # Terminal 2
-npm run dev:once -- --list
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --manifest manifests/examples/echo.json --list
+npm run dev:once -- --manifest manifests/examples/echo.json --scenario example/echo
 ```
 
-Example flow: `npm run dev -- --manifest manifests/examples/echo.json` then `npm run dev:once -- --fixture example/echo`.
+**Shortcut:** `npm run dev:example` starts dev with `manifests/examples/echo.json`.
 
-**Shortcut:** `npm run dev:example` prints a hint and starts dev with `manifests/examples/echo.json`.
+### Adapter dev behavior
 
-### Application dev adapters
-
-When `synapse.webhooks.prs.v1` is mounted, agents that need local adapter stubs declare adapter fixture paths under `agents[].fixtures.adapter` (see `manifests/application.json` for `agent-reviewer`). The handler package bootstraps clients from the active manifest; the worker does not wire agent-specific adapters.
+- **Worker:** `ctx.adapters` HTTP RPC to `apps/adapters` (`ADAPTERS_BASE_URL`).
+- **Scenarios:** optional `adapters[]` on scenario files install FIFO mocks on the adapters app (`POST /v1/dev/scenario-context` path) for ingress-only runs.
+- **`agent-reviewer` hermetic:** set `AGENT_REVIEWER_HERMETIC=1` in env when starting dev (not in manifest). See [Environment](environment.md) and `agents/agent-reviewer/README.md`.
 
 ### Security
 
-1. Handler paths resolved only through prefix allowlist (`agents/`, `examples/agents/`)
-2. Reject `..` in paths
-3. Warn if manifest file path resolves outside repo root
-4. No secrets in manifest files
-5. Optional `SYNAPSE_ALLOW_LOCAL_MANIFEST_IMPORTS=1` for local experiments only
+1. Manifest files must stay under the repo root (warn if resolved path escapes)
+2. No secrets in manifest JSON
+3. Handler code is only loaded from shipped definitions compiled into the worker process — not from arbitrary manifest paths
 
 ### Observability
 
-Structured logs and dev run artifacts may include (low-cardinality):
-
-```json
-{
-  "manifest_name": "application-default",
-  "manifest_path": "/abs/path/manifests/application.json",
-  "agent_name": "agent-reviewer",
-  "event_type": "pr.received.v1"
-}
-```
-
-Do not use manifest path as a metric label (high cardinality).
+Structured logs may include low-cardinality fields: `manifest_name`, `agent_name`, `event_type`. Do not use full manifest path as a metric label.
 
 ### Adding or changing agents
 
 ### Application agent checklist
 
-1. Create handler module under `agents/agent-<name>/src/<feature>-agent.ts` (default export).
-2. Add event types to `libs/runtime-events` if new signals/outcomes are needed.
-3. Add or extend `manifests/application.json` (or a custom manifest you pass to `npm run dev`).
-4. Add HTTP ingress under `apps/webhooks` when exercising via webhooks.
-5. Add `*.fixture.json` under `fixtures/<agent-name>/` and list its path on `agents[].fixtures`.
-6. Unit tests: `withTestDevServer({ manifestPath })` then `runDevOnce({ fixtureId, env })` (inject deps like `setReviewPrPiClient` before run).
+1. Implement handler module (`defineAgentHandler` default export) and **`defineAgent`** in `*-agent.definition.ts`.
+2. Export definition from `definition.ts`; add to **`apps/worker/src/shipped-agents.ts`**.
+3. Add event types to `libs/runtime-events` if needed.
+4. Mount `{ "name": "…" }` in `manifests/application.json` (or custom manifest).
+5. Add `webhooks` / `pollers` / `adapters` mounts as needed.
+6. Add `scenarios/<agent>/….scenarios.json` with `manifests[]` including your manifest `name`.
+7. Add HTTP routes in `apps/ingress` when using webhooks.
+8. Tests: `runAgentE2e` / `withTestDevServer` must pass **`shippedAgents`** and **`knownEventTypes`** (see `examples/agents/example-agent-echo/test/integration/echo-dev-once.e2e.test.ts` for pattern importing from `apps/worker/src/shipped-agents.ts`).
 
 ### Example agent checklist
 
-1. Handler under `examples/agents/example-agent-<name>/src/…-agent.ts`.
-2. New manifest under `manifests/examples/<name>.json` (do not add example agents to `manifests/application.json` unless intentional).
-3. Fixture JSON under `examples/fixtures/` listed on `agents[].fixtures`.
-4. Verify with `npm run dev -- --manifest manifests/examples/<name>.json` then `npm run dev:once -- --fixture <id>`.
+Same pattern under `examples/agents/` with `example-agent-*` package names and `manifests/examples/*.json`. Do not add example agents to `manifests/application.json` unless intentional.
 
 ### Multiple agents, one event type
 
-The same `handles` event type may map to **multiple** manifest agents (broadcast semantics). No extra manifest flag is required.
+Multiple shipped definitions may list the same handle; planning invokes each matching agent (broadcast semantics).
 
 ### Testing
 
@@ -326,8 +316,8 @@ The same `handles` event type may map to **multiple** manifest agents (broadcast
 | --- | --- |
 | Schema | `npx nx run runtime-manifest:test` |
 | Worker load | `apps/worker/test/unit/manifest-registry.test.ts` |
-| Agent e2e | `runAgentE2e({ manifestPath: 'manifests/application.json', … })` |
-| Integration | `libs/runtime-manifest/test/integration/registry.integration.test.ts` |
+| Agent e2e | `withTestDevServer({ manifestPath, shippedAgents, knownEventTypes, … })` |
+| Architecture | `npm run test:docs` (`test/architecture/runtime-boundaries.test.ts`) |
 
 Hermetic tests must not call live third-party APIs.
 
@@ -335,13 +325,13 @@ Hermetic tests must not call live third-party APIs.
 
 | Symptom | What to check |
 | --- | --- |
-| Worker exits on startup | Manifest path, JSON strict keys, unknown `handles` event, missing handler file, invalid default export |
-| `dev:once` says missing dev-session | Start `npm run dev` first (writes `.synapse/dev-session.json`) |
-| Fixture not in `--list` | Fixture path on `agents[].fixtures` and valid `id` in the JSON file |
-| Webhook 404 | `webhooks.routes` in manifest includes the fixture’s `ingress.path` (restart dev after manifest change) |
-| Agent never runs | `handles` includes the ingress event type; planner uses `findAgentsForEvent` |
-| Wrong agent runs | You started dev with a different manifest than you think — read `synapse manifest:` line |
+| Worker exits on startup | Manifest path, strict keys, unknown mounted agent name, handle not in `eventRegistry`, `usesAdapters` not mounted |
+| `dev:once` cannot reach ingress | Start `npm run dev` first; check `127.0.0.1:3102` |
+| Scenario not in `--list` | `manifests[]` includes active manifest `name`; valid `id` in scenario file |
+| Webhook 404 | Manifest `webhooks` includes scenario `ingress.source`; restart dev after manifest change |
+| Agent never runs | Definition `handles` includes ingress event type |
 | `dev:once --manifest` fails | Expected — use `npm run dev -- --manifest` instead |
+| Unknown agent in manifest | Add `defineAgent` + `shipped-agents.ts` entry |
 
 ## Examples
 
@@ -349,18 +339,18 @@ Hermetic tests must not call live third-party APIs.
 npm run dev
 npm run dev -- --manifest manifests/examples/echo.json
 SYNAPSE_RUNTIME_MANIFEST=manifests/debug/reviewer-only.json npm run dev
-npm run dev:once -- --fixture review-pr/gitlab-synapse
-npm run dev:once -- --fixture example/echo
+npm run dev:once -- --scenario review-pr/gitlab-synapse
+npm run dev:once -- --scenario example/echo
 ```
 
 ## Related Pages
 
-- [Agents](agents.md) — package layout, naming, fixtures
-- [Runtime manifest (explanation)](../explanation/runtime-manifest.md) — why subscriptions moved to JSON
-- [Local agent development](../how-to/local-agent-development.md) — day-to-day workflows
-- [Commands](commands.md) — CLI table
-- [Environment](environment.md) — `SYNAPSE_RUNTIME_MANIFEST`
-- [Create an application agent](../how-to/create-an-agent.md)
-- [Create an example agent](../how-to/create-an-example-agent.md)
+- [Agents](agents.md) — package layout, scenarios, adapters
+- [Runtime manifest (explanation)](../explanation/runtime-manifest.md)
+- [Agents and adapters](../explanation/agents-and-adapters.md)
+- [Create an adapter](../how-to/create-an-adapter.md)
+- [Local agent development](../how-to/local-agent-development.md)
+- [Commands](commands.md)
+- [Environment](environment.md)
 
-Outside `docs/`: `libs/runtime-manifest/README.md`, `specs/manifest.md`.
+Outside `docs/`: `libs/runtime-manifest/README.md`, `specs/tidying.md`, `specs/adapters.md`.

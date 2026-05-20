@@ -1,4 +1,5 @@
 import { getRepoRoot } from 'runtime-config';
+import { eventRegistry } from 'runtime-events';
 import {
   formatManifestStartupLine,
   loadValidatedManifestRegistry,
@@ -9,6 +10,9 @@ import {
   type RuntimeRegistry,
   wrapManifestRuntimeRegistry,
 } from 'runtime-worker';
+import { validateScenarioForManifest } from 'synapse-scenarios';
+
+import { shippedAgentsByName } from './shipped-agents.js';
 
 export type LoadedManifestRegistry = {
   registry: RuntimeRegistry;
@@ -27,7 +31,10 @@ export async function loadWorkerManifestRegistry(
     await loadValidatedManifestRegistry({
       repoRoot,
       manifestPath,
+      shippedAgents: shippedAgentsByName,
+      knownEventTypes: new Set(Object.keys(eventRegistry)),
       env,
+      validateScenarioForManifest,
     });
 
   console.log(formatManifestStartupLine(manifestPath));

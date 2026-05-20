@@ -1,6 +1,6 @@
 import { defineAgentHandler, type SynapseEvent } from 'runtime-agent';
-
 import { configureReviewPrDevClients } from './configure-review-pr-dev-clients.js';
+import { createGitLabMergeRequestClientFromAdapterPort } from './gitlab-merge-request-client.js';
 import { PiReviewFailedError, type PiReviewRequest } from './pi-review-client';
 import { type PrReceivedData, prReceivedDataSchema } from './pr-received-data';
 import {
@@ -44,7 +44,11 @@ const defaultUnconfiguredPi = {
 };
 
 export default defineAgentHandler(prReceivedDataSchema, async (ctx, event) => {
-  configureReviewPrDevClients();
+  const gitlab = createGitLabMergeRequestClientFromAdapterPort(
+    ctx.adapters,
+    ctx.agentName,
+  );
+  configureReviewPrDevClients(process.env, import.meta.url, { gitlab });
   const piReview = getReviewPrPiClient() ?? defaultUnconfiguredPi;
   const data = event.data;
   const repoRoot = piReview.repoRoot;

@@ -30,7 +30,7 @@ chat.closed.v1     (example-agent-dialogue-questioner)
 npx nx run example-agent-dialogue:test
 ```
 
-HTTP: when **`example/dialogue`** is listed on the example manifest `agents[].fixtures`, run **`npm run dev:example`** then **`npm run dev:once -- --fixture example/dialogue`**.
+HTTP: when a scenario **`example/dialogue`** exists on the example manifest `scenarios[]`, run **`npm run dev:example`** then **`npm run dev:once -- --scenario example/dialogue`**.
 
 Trigger: `example-agent-dialogue/dialogue` → `triggerDialogue()`.
 

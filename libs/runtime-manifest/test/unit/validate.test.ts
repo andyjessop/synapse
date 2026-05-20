@@ -1,8 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it, vi } from 'vitest';
-
+import { validateScenarioForManifest } from 'synapse-scenarios';
+import { describe, expect, it } from 'vitest';
 import {
   parseRuntimeManifestFile,
   parseRuntimeManifestJson,
@@ -10,31 +9,24 @@ import {
   validateRuntimeManifest,
 } from '../../src/index.js';
 import { manifestDocumentBase } from '../helpers/manifest-document-base.js';
+import {
+  testKnownEventTypes,
+  testShippedAgentsByName,
+} from '../helpers/test-manifest-load-deps.js';
 
 const repoRoot = join(fileURLToPath(new URL('../../../..', import.meta.url)));
-const reviewerHandler = 'agents/agent-reviewer/src/review-pr-agent.ts';
-const echoHandler = 'examples/agents/example-agent-echo/src/echo-agent.ts';
 
 describe('validateRuntimeManifest', () => {
-  const knownEventTypes = new Set([
-    'example.ping.v1',
-    'example.pong.v1',
-    'pr.received.v1',
-    'pr.reviewed.v1',
-  ]);
-  const stubHandler = async () => {};
-
   function validate(
     manifest: RuntimeManifest,
     manifestPath = join(repoRoot, 'manifests/test.json'),
-    resolveHandler: (handlerPath: string) => typeof stubHandler = () =>
-      stubHandler,
   ) {
     return validateRuntimeManifest(manifest, {
       manifestPath,
       repoRoot,
-      knownEventTypes,
-      resolveHandler,
+      knownEventTypes: testKnownEventTypes,
+      shippedAgents: testShippedAgentsByName,
+      validateScenarioForManifest,
     });
   }
 
@@ -42,125 +34,101 @@ describe('validateRuntimeManifest', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
       name: 'test',
-      agents: [
-        {
-          name: 'a',
-          handler: reviewerHandler,
-          handles: ['unknown.event.v1'],
-        },
+      agents: [{ name: 'agent-reviewer' }],
+    });
+    const agents = new Map(testShippedAgentsByName);
+    agents.set('agent-reviewer', {
+      ...testShippedAgentsByName.get('agent-reviewer')!,
+      handles: ['unknown.event.v1'],
+    });
+    expect(() =>
+      validateRuntimeManifest(manifest, {
+        manifestPath: join(repoRoot, 'manifests/test.json'),
+        repoRoot,
+        knownEventTypes: testKnownEventTypes,
+        shippedAgents: agents,
+        validateScenarioForManifest,
+      }),
+    ).toThrow(/handles unknown event type/);
+  });
+
+  it('rejects unknown shipped agent', () => {
+    const manifest = parseRuntimeManifestJson({
+      ...manifestDocumentBase,
+      name: 'test',
+      agents: [{ name: 'agent-unknown' }],
+    });
+    expect(() => validate(manifest)).toThrow(/Manifest mounts unknown agent/);
+  });
+
+  it('rejects usesAdapters not mounted on manifest', () => {
+    const manifest = parseRuntimeManifestJson({
+      ...manifestDocumentBase,
+      name: 'test',
+      agents: [{ name: 'agent-reviewer' }],
+      adapters: [],
+    });
+    expect(() => validate(manifest)).toThrow(
+      /uses adapter .* but manifest does not mount/,
+    );
+  });
+
+  it('rejects duplicate webhook sources', () => {
+    const manifest = parseRuntimeManifestJson({
+      ...manifestDocumentBase,
+      name: 'dup-webhooks',
+      agents: [{ name: 'example-echo' }],
+      webhooks: [
+        { source: 'synapse.webhooks.example-echo-ping.v1' },
+        { source: 'synapse.webhooks.example-echo-ping.v1' },
       ],
     });
-    expect(() => validate(manifest)).toThrow(/Unknown event type/);
+    expect(() => validate(manifest)).toThrow(/Duplicate webhook source/);
   });
 
   it('rejects duplicate agent names', () => {
     const dup = parseRuntimeManifestJson({
       ...manifestDocumentBase,
       name: 'dup',
-      agents: [
-        { name: 'same', handler: reviewerHandler, handles: ['pr.received.v1'] },
-        { name: 'same', handler: reviewerHandler, handles: ['pr.received.v1'] },
-      ],
+      agents: [{ name: 'example-echo' }, { name: 'example-echo' }],
     });
     expect(() => validate(dup)).toThrow(/Duplicate manifest agent name/);
   });
 
-  it('rejects fixture agent mismatch', () => {
+  it('rejects duplicate scenario ids across scenario files for one manifest', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
-      name: 'bad-agent',
-      agents: [
-        {
-          name: 'agent-reviewer',
-          handler: reviewerHandler,
-          handles: ['pr.received.v1'],
-          fixtures: {
-            webhook: ['examples/fixtures/example-agent-echo/echo.fixture.json'],
-            adapter: [],
-          },
-        },
-      ],
+      name: 'dup-scenario-ids',
+      agents: [{ name: 'example-echo' }],
+      webhooks: [{ source: 'synapse.webhooks.example-echo-ping.v1' }],
     });
-    expect(() => validate(manifest)).toThrow(/does not match manifest agent/);
+    expect(() => validate(manifest)).toThrow(/Duplicate scenario id/);
   });
 
-  it('dedupes duplicate fixture paths on the same agent', () => {
+  it('rejects scenario whose ingress source is not mounted on manifest', () => {
     const manifest = parseRuntimeManifestJson({
       ...manifestDocumentBase,
-      name: 'dup-fixture',
-      agents: [
-        {
-          name: 'example-echo',
-          handler: echoHandler,
-          handles: ['example.ping.v1'],
-          fixtures: {
-            webhook: [
-              'examples/fixtures/example-agent-echo/echo.fixture.json',
-              'examples/fixtures/example-agent-echo/echo.fixture.json',
-            ],
-            adapter: [],
-          },
-        },
-      ],
-    });
-    expect(() => validate(manifest)).not.toThrow();
-  });
-
-  it('rejects fixture ingress path not mounted by webhooks.routes', () => {
-    const manifest = parseRuntimeManifestJson({
-      ...manifestDocumentBase,
-      name: 'bad-route',
-      agents: [
-        {
-          name: 'agent-reviewer',
-          handler: reviewerHandler,
-          handles: ['pr.received.v1'],
-          fixtures: {
-            webhook: [
-              'fixtures/agent-reviewer/review-pr-gitlab-synapse.fixture.json',
-            ],
-            adapter: [],
-          },
-        },
-      ],
-      webhooks: { routes: ['synapse.webhooks.example-echo-ping.v1'] },
+      name: 'example-echo',
+      agents: [{ name: 'example-echo' }],
     });
     expect(() => validate(manifest)).toThrow(/not mounted/);
   });
 
-  it('rejects agent-reviewer without fixtures.adapter', () => {
-    const manifest = parseRuntimeManifestJson({
-      ...manifestDocumentBase,
-      name: 'no-adapter',
-      agents: [
-        {
-          name: 'agent-reviewer',
-          handler: reviewerHandler,
-          handles: ['pr.received.v1'],
-        },
-      ],
-    });
-    expect(() => validate(manifest)).toThrow(/fixtures\.adapter/);
-  });
-
-  it('accepts application manifest with fixtures', () => {
+  it('accepts application manifest with scenario manifests binding', () => {
     const manifest = parseRuntimeManifestFile(
       join(repoRoot, 'manifests/application.json'),
     );
     expect(() =>
-      validate(
-        manifest,
-        join(repoRoot, 'manifests/application.json'),
-        (handlerPath) => {
-          if (
-            handlerPath === reviewerHandler &&
-            existsSync(join(repoRoot, handlerPath))
-          ) {
-            return stubHandler;
-          }
-          throw new Error(`Handler not resolved: ${handlerPath}`);
-        },
-      ),
+      validate(manifest, join(repoRoot, 'manifests/application.json')),
+    ).not.toThrow();
+  });
+
+  it('validates scenarios that declare the manifest name', () => {
+    const manifest = parseRuntimeManifestFile(
+      join(repoRoot, 'manifests/examples/echo.json'),
+    );
+    expect(() =>
+      validate(manifest, join(repoRoot, 'manifests/examples/echo.json')),
     ).not.toThrow();
   });
 });

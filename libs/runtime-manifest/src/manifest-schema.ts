@@ -1,27 +1,34 @@
 import { z } from 'zod';
-
 import { MANIFEST_SCHEMA_PATH } from './fixture-schemas/schema-paths.js';
+import { pollSourceIdSchema } from './poll-source-catalog.js';
 import { webhookRouteIdSchema } from './webhook-route-catalog.js';
 
-export const runtimeManifestAgentFixturesSchema = z
+export const webhookMountEntrySchema = z
   .object({
-    webhook: z.array(z.string().min(1)),
-    adapter: z.array(z.string().min(1)),
+    source: webhookRouteIdSchema,
+  })
+  .strict();
+
+export const pollSourceManifestEntrySchema = z
+  .object({
+    source: pollSourceIdSchema,
+    intervalMs: z.number().int().positive().optional(),
+    lockTtlMs: z.number().int().positive().optional(),
+    enabled: z.boolean().optional(),
+    params: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 
 export const runtimeManifestAgentSchema = z
   .object({
     name: z.string().min(1),
-    handler: z.string().min(1),
-    handles: z.array(z.string().min(1)).min(1),
-    fixtures: runtimeManifestAgentFixturesSchema.optional(),
   })
   .strict();
 
-export const runtimeManifestWebhooksSchema = z
+export const adapterMountEntrySchema = z
   .object({
-    routes: z.array(webhookRouteIdSchema).min(1),
+    /** Adapter source id; must be registered in `apps/adapters` at invoke time. */
+    source: z.string().min(1),
   })
   .strict();
 
@@ -32,12 +39,16 @@ export const runtimeManifestSchema = z
     name: z.string().min(1),
     description: z.string().optional(),
     agents: z.array(runtimeManifestAgentSchema).min(1),
-    webhooks: runtimeManifestWebhooksSchema.optional(),
+    webhooks: z.array(webhookMountEntrySchema).optional(),
+    pollers: z.array(pollSourceManifestEntrySchema).optional(),
+    adapters: z.array(adapterMountEntrySchema).optional(),
   })
   .strict();
 
 export type RuntimeManifest = z.infer<typeof runtimeManifestSchema>;
 export type RuntimeManifestAgent = z.infer<typeof runtimeManifestAgentSchema>;
-export type RuntimeManifestAgentFixtures = z.infer<
-  typeof runtimeManifestAgentFixturesSchema
+export type WebhookMountEntry = z.infer<typeof webhookMountEntrySchema>;
+export type PollSourceManifestEntry = z.infer<
+  typeof pollSourceManifestEntrySchema
 >;
+export type AdapterMountEntry = z.infer<typeof adapterMountEntrySchema>;

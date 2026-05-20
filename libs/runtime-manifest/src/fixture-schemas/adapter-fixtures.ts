@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { gitlabFetchChangesResponseSchema } from './gitlab-response.js';
 import {
   ADAPTER_FIXTURE_SCHEMA_PATHS,
   assertKnownFixtureSchemaPath,
@@ -17,14 +16,6 @@ const adapterFixtureDocumentBaseSchema = z
   })
   .strict();
 
-export const gitlabFetchChangesAdapterFixtureSchema =
-  adapterFixtureDocumentBaseSchema.extend({
-    schema: z.literal(ADAPTER_FIXTURE_SCHEMA_PATHS.GITLAB_FETCH_CHANGES),
-    adapter: z.literal('gitlab'),
-    method: z.literal('fetchChanges'),
-    response: gitlabFetchChangesResponseSchema,
-  });
-
 export const piReviewAdapterFixtureResponseSchema = z
   .object({
     markdown: z.string().min(1),
@@ -39,21 +30,13 @@ export const piReviewAdapterFixtureSchema =
     response: piReviewAdapterFixtureResponseSchema,
   });
 
-export type GitlabFetchChangesAdapterFixture = z.infer<
-  typeof gitlabFetchChangesAdapterFixtureSchema
->;
-
 export type PiReviewAdapterFixture = z.infer<
   typeof piReviewAdapterFixtureSchema
 >;
 
-export type ParsedAdapterFixture =
-  | GitlabFetchChangesAdapterFixture
-  | PiReviewAdapterFixture;
+export type ParsedAdapterFixture = PiReviewAdapterFixture;
 
 const adapterFixtureSchemaByPath = {
-  [ADAPTER_FIXTURE_SCHEMA_PATHS.GITLAB_FETCH_CHANGES]:
-    gitlabFetchChangesAdapterFixtureSchema,
   [ADAPTER_FIXTURE_SCHEMA_PATHS.PI_REVIEW]: piReviewAdapterFixtureSchema,
 } as const;
 
@@ -66,7 +49,7 @@ export function parseAdapterFixtureJson(json: unknown): ParsedAdapterFixture {
     ];
   if (parser === undefined) {
     throw new Error(
-      `No adapter fixture parser registered for schema path: ${schemaPath}. Registered: ${Object.keys(adapterFixtureSchemaByPath).join(', ')}`,
+      `No adapter fixture parser registered for schema path: ${schemaPath}. Vendor adapter fixtures belong under adapters/* (e.g. adapter-gitlab). Registered: ${Object.keys(adapterFixtureSchemaByPath).join(', ')}`,
     );
   }
   return parser.parse(json) as ParsedAdapterFixture;

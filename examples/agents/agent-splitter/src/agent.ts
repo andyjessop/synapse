@@ -1,9 +1,9 @@
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { EXAMPLE_AGENT_SPLITTER } from 'runtime-events';
 
 export const SPLITTER_AGENT_NAME = EXAMPLE_AGENT_SPLITTER;
 
-export const splitterAgentDefinition = defineAgent({
+export const splitterAgentDefinition = defineRegistryAgent({
   name: SPLITTER_AGENT_NAME,
   reactors: [
     defineReactor({

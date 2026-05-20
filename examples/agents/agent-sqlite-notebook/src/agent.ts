@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { defineAgent, defineReactor } from 'runtime-agent';
+import { defineReactor, defineRegistryAgent } from 'runtime-agent';
 import { computeNormalizedMigrationSqlHash } from 'runtime-agent-sqlite';
 import { EXAMPLE_AGENT_SQLITE_NOTEBOOK } from 'runtime-events';
 
@@ -19,7 +19,7 @@ const notesMigration = {
   sql: NOTES_TABLE_SQL,
 } as const;
 
-export const sqliteNotebookAgentDefinition = defineAgent({
+export const sqliteNotebookAgentDefinition = defineRegistryAgent({
   name: SQLITE_NOTEBOOK_AGENT_NAME,
   sqlite: {
     migrations: [notesMigration],
