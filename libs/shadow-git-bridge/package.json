@@ -1,0 +1,10 @@
+{
+	"name": "@deus/shadow-git-bridge",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"test": "vitest run",
+		"lint": "biome check src",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	}
+}

@@ -68,6 +68,7 @@
     "dev-cli-shared": "workspace:*",
     "dev-once": "workspace:*",
     "dev-tooling": "workspace:*",
+    "dockerode": "^4.0.9",
     "synapse-fixtures": "workspace:*",
     "synapse-scenarios": "workspace:*",
     "example-agent-dialogue": "workspace:*",

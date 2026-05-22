@@ -71,6 +71,7 @@
     "libs/dev-tooling/src/**/*.ts",
     "libs/synapse-fixtures/src/**/*.ts",
     "libs/synapse-scenarios/src/**/*.ts",
+    "libs/shadow-git-bridge/src/**/*.ts",
     "libs/runtime-events/src/**/*.ts",
     "libs/runtime-observability/src/**/*.ts",
     "agents/agent-reviewer/src/**/*.ts",
